@@ -17,7 +17,10 @@ export default defineConfig({
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'mobile', use: { ...devices['iPhone 13'] } },
+    // Мобильный прогон проверяет вёрстку и попадание по элементам на узком
+    // экране. Pixel 7 работает на том же chromium — второй движок ради этого
+    // качать незачем.
+    { name: 'mobile', use: { ...devices['Pixel 7'] } },
   ],
   // E2E гоняется против прод-сборки в mock-режиме: backend не нужен.
   webServer: {
