@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { cn } from '@/lib/cn'
+import { plural } from '@/lib/format'
 
 type BadgeTone = 'neutral' | 'brand' | 'sand' | 'alert'
 
@@ -44,10 +45,14 @@ export function RatingBadge({ rating, reviewsCount }: { rating: number; reviewsC
 }
 
 export function StarsBadge({ stars }: { stars: number }) {
+  // Звёзды декоративны: скринридер получает подпись, а не пять одинаковых
+  // символов, из которых непонятно, сколько из них закрашено.
   return (
-    <span className="text-sand-500 text-sm" aria-label={`${stars} звезды`}>
-      {'★'.repeat(stars)}
-      <span className="text-ink-300">{'★'.repeat(5 - stars)}</span>
+    <span role="img" aria-label={`Отель ${stars} ${plural(stars, ['звезда', 'звезды', 'звёзд'])}`}>
+      <span className="text-sand-500 text-sm" aria-hidden="true">
+        {'★'.repeat(stars)}
+        <span className="text-ink-300">{'★'.repeat(5 - stars)}</span>
+      </span>
     </span>
   )
 }

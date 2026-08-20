@@ -12,7 +12,9 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    // Порт можно переопределить переменной PORT — на машине разработчика 5173
+    // бывает занят другим проектом.
+    port: Number(process.env.PORT) || 5173,
   },
   test: {
     globals: true,
