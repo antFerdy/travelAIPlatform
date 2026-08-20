@@ -5,9 +5,11 @@ import { collectCountries, filterTours } from '@/api/filterTours'
 import { bookingDraftSchema, toursSchema } from '@/api/schemas'
 import type { SortOption, TourQuery } from '@/api/contract'
 import { SORT_OPTIONS } from '@/api/contract'
+import { todayIso } from '@/domain/availability'
 import { calculateTotal } from '@/domain/pricing'
 import rawTours from '@/mocks/tours.json'
 import type { Booking } from '@/types/booking'
+import type { Tour } from '@/types/tour'
 
 export const API_BASE_URL = 'http://api.test'
 
@@ -52,17 +54,38 @@ function parseQuery(url: URL): TourQuery {
 let bookingCounter = 0
 
 /**
+ * Каталог с учётом уже созданных броней — ровно та же логика, что в мок-адаптере.
+ * Оба «бэкенда» обязаны вести себя одинаково, иначе контрактный тест бессмысленен.
+ */
+function availableTours(): Tour[] {
+  const taken: Record<string, number> = {}
+
+  for (const booking of bookings.values()) {
+    const key = `${booking.tourId}:${booking.departureId}`
+    taken[key] = (taken[key] ?? 0) + booking.guests
+  }
+
+  return tours.map((tour) => ({
+    ...tour,
+    departures: tour.departures.map((departure) => ({
+      ...departure,
+      seatsLeft: Math.max(0, departure.seatsLeft - (taken[`${tour.id}:${departure.id}`] ?? 0)),
+    })),
+  }))
+}
+
+/**
  * Заглушка backend'а, реализующая контракт из ai-rules/frontend.md.
  * Логика фильтрации переиспользует ту же чистую функцию, что и мок-адаптер:
  * тест проверяет транспорт и форму ответа, а не повторяет бизнес-правила.
  */
 export const handlers = [
   http.get(`${API_BASE_URL}/tours`, ({ request }) =>
-    HttpResponse.json(filterTours(tours, parseQuery(new URL(request.url)))),
+    HttpResponse.json(filterTours(availableTours(), parseQuery(new URL(request.url)))),
   ),
 
   http.get(`${API_BASE_URL}/tours/:id`, ({ params }) => {
-    const tour = tours.find((candidate) => candidate.id === params['id'])
+    const tour = availableTours().find((candidate) => candidate.id === params['id'])
 
     return tour
       ? HttpResponse.json(tour)
@@ -79,7 +102,7 @@ export const handlers = [
     }
 
     const draft = parsed.data
-    const tour = tours.find((candidate) => candidate.id === draft.tourId)
+    const tour = availableTours().find((candidate) => candidate.id === draft.tourId)
 
     if (!tour) {
       return HttpResponse.json({ message: `Тур ${draft.tourId} не найден` }, { status: 404 })
@@ -89,6 +112,10 @@ export const handlers = [
 
     if (!departure) {
       return HttpResponse.json({ message: 'Выбранный вылет недоступен' }, { status: 400 })
+    }
+
+    if (departure.startDate < todayIso()) {
+      return HttpResponse.json({ message: 'Этот вылет уже состоялся' }, { status: 400 })
     }
 
     if (departure.seatsLeft < draft.guests) {

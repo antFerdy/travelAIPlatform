@@ -20,14 +20,16 @@ export type TourImageProps = {
  * Родитель обязан иметь `relative` и заданный размер.
  */
 export function TourImage({ src, alt, className, loading = 'lazy' }: TourImageProps) {
-  const [failed, setFailed] = useState(false)
+  // Запоминаем именно упавший адрес, а не факт падения: галерея переиспользует
+  // один и тот же элемент, и флаг «сломалось» залипал бы на рабочих кадрах.
+  const [failedSrc, setFailedSrc] = useState<string>()
 
   return (
     <img
-      src={failed ? PLACEHOLDER : src}
+      src={failedSrc === src ? PLACEHOLDER : src}
       alt={alt}
       loading={loading}
-      onError={() => setFailed(true)}
+      onError={() => setFailedSrc(src)}
       className={cn('bg-brand-100 absolute inset-0 h-full w-full object-cover', className)}
     />
   )

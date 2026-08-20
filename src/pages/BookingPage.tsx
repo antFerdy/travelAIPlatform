@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useEffect } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { z } from 'zod'
@@ -42,6 +43,7 @@ export function BookingPage() {
     register,
     handleSubmit,
     control,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<BookingFormValues>({
     resolver: zodResolver(bookingFormSchema),
@@ -58,6 +60,19 @@ export function BookingPage() {
   // useWatch вместо watch(): подписка мемоизируется и не ломает React Compiler.
   const guests = useWatch({ control, name: 'guests' }) || MIN_GUESTS
   const departureId = useWatch({ control, name: 'departureId' })
+
+  // departureId приходит из строки запроса, а её пишет кто угодно. Если такого
+  // вылета у тура нет или он уже состоялся, значение снимаем: иначе форма
+  // отправит вылет, которого нет в списке, и бронь уйдёт на прошедшую дату.
+  useEffect(() => {
+    if (!tour || !departureId) return
+
+    const available = upcomingDepartures(tour).some(
+      (departure) => departure.id === departureId,
+    )
+
+    if (!available) setValue('departureId', '')
+  }, [tour, departureId, setValue])
 
   if (isPending) {
     return (

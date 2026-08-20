@@ -161,6 +161,52 @@ describe.each(adapters)('Api контракт: адаптер %s', (_name, api) 
       ).rejects.toMatchObject({ name: 'ApiError', status: 400 })
     })
 
+    it('списывает занятые места, а не только сохраняет бронь', async () => {
+      const { items } = await api.listTours({ limit: 50 })
+      const tour = items.find((candidate) => (candidate.departures[0]?.seatsLeft ?? 0) >= 3)
+      const departure = tour?.departures[0]
+
+      if (!tour || !departure) throw new Error('Нет тура со свободными местами')
+
+      const before = departure.seatsLeft
+
+      await api.createBooking(
+        makeBookingDraft({ tourId: tour.id, departureId: departure.id, guests: 2 }),
+      )
+
+      const refreshed = await api.getTour(tour.id)
+      const updated = refreshed.departures.find((candidate) => candidate.id === departure.id)
+
+      expect(updated?.seatsLeft).toBe(before - 2)
+    })
+
+    it('не даёт забронировать больше мест, чем осталось после предыдущих броней', async () => {
+      const { items } = await api.listTours({ limit: 50 })
+
+      const candidate = items
+        .flatMap((tour) => tour.departures.map((departure) => ({ tour, departure })))
+        .find(({ departure }) => departure.seatsLeft >= 2 && departure.seatsLeft <= 4)
+
+      if (!candidate) throw new Error('Нет вылета с небольшим числом мест')
+
+      const { tour, departure } = candidate
+
+      // Выкупаем все места
+      await api.createBooking(
+        makeBookingDraft({
+          tourId: tour.id,
+          departureId: departure.id,
+          guests: departure.seatsLeft,
+        }),
+      )
+
+      await expect(
+        api.createBooking(
+          makeBookingDraft({ tourId: tour.id, departureId: departure.id, guests: 1 }),
+        ),
+      ).rejects.toMatchObject({ name: 'ApiError', status: 400 })
+    })
+
     it('падает с 400, если мест на вылете меньше, чем гостей', async () => {
       const { items } = await api.listTours({ limit: 50 })
 

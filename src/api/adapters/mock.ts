@@ -1,3 +1,4 @@
+import { todayIso } from '@/domain/availability'
 import { calculateTotal } from '@/domain/pricing'
 import rawTours from '@/mocks/tours.json'
 import type { Booking, BookingDraft } from '@/types/booking'
@@ -49,6 +50,36 @@ function writeBookings(bookings: Record<string, Booking>): void {
   localStorage.setItem(BOOKINGS_STORAGE_KEY, JSON.stringify(bookings))
 }
 
+/** Сколько мест уже занято по каждому вылету, по сохранённым броням. */
+function seatsTaken(): Record<string, number> {
+  const taken: Record<string, number> = {}
+
+  for (const booking of Object.values(readBookings())) {
+    const key = `${booking.tourId}:${booking.departureId}`
+    taken[key] = (taken[key] ?? 0) + booking.guests
+  }
+
+  return taken
+}
+
+/**
+ * Каталог с учётом уже созданных броней.
+ *
+ * Без этого мок противоречил бы сам себе: брони он хранит, а места по ним
+ * не списывает — вылет с одним местом можно было бы забронировать дважды.
+ */
+function availableTours(): Tour[] {
+  const taken = seatsTaken()
+
+  return tours.map((tour) => ({
+    ...tour,
+    departures: tour.departures.map((departure) => ({
+      ...departure,
+      seatsLeft: Math.max(0, departure.seatsLeft - (taken[`${tour.id}:${departure.id}`] ?? 0)),
+    })),
+  }))
+}
+
 function generateBookingId(): string {
   const bytes = new Uint8Array(3)
   crypto.getRandomValues(bytes)
@@ -64,13 +95,13 @@ export const mockApi: Api = {
   async listTours(query: TourQuery): Promise<Paginated<Tour>> {
     await delay()
 
-    return filterTours(tours, query)
+    return filterTours(availableTours(), query)
   },
 
   async getTour(id: string): Promise<Tour> {
     await delay()
 
-    const tour = tours.find((candidate) => candidate.id === id)
+    const tour = availableTours().find((candidate) => candidate.id === id)
 
     if (!tour) {
       throw new ApiError(404, `Тур ${id} не найден`)
@@ -88,7 +119,7 @@ export const mockApi: Api = {
   async createBooking(draft: BookingDraft): Promise<Booking> {
     await delay()
 
-    const tour = tours.find((candidate) => candidate.id === draft.tourId)
+    const tour = availableTours().find((candidate) => candidate.id === draft.tourId)
 
     if (!tour) {
       throw new ApiError(404, `Тур ${draft.tourId} не найден`)
@@ -98,6 +129,12 @@ export const mockApi: Api = {
 
     if (!departure) {
       throw new ApiError(400, 'Выбранный вылет недоступен')
+    }
+
+    // Форма прячет прошедшие вылеты, но идентификатор приходит из строки
+    // запроса — проверяем на границе слоя данных, а не только в интерфейсе.
+    if (departure.startDate < todayIso()) {
+      throw new ApiError(400, 'Этот вылет уже состоялся')
     }
 
     if (departure.seatsLeft < draft.guests) {

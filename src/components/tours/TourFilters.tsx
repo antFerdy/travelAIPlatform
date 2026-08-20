@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react'
+import type { KeyboardEvent } from 'react'
 
 import { SORT_LABELS, SORT_OPTIONS, type SortOption } from '@/api'
 import { todayIso } from '@/domain/availability'
-import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import type { TourFilters as Filters } from '@/hooks/useTourFilters'
 import { MAX_GUESTS, MIN_GUESTS } from '@/types/booking'
 
@@ -38,33 +37,24 @@ export function TourFilters({
   onChange,
   onReset,
 }: TourFiltersProps) {
-  // Цена вводится посимвольно, поэтому в URL уходит отложенно.
-  const [priceMin, setPriceMin] = useState(filters.priceMin?.toString() ?? '')
-  const [priceMax, setPriceMax] = useState(filters.priceMax?.toString() ?? '')
+  /**
+   * Поля цены неуправляемые и пересоздаются через `key` при смене применённого
+   * значения. Так строка запроса остаётся единственным источником истины:
+   * зеркалить её в состояние компонента — значит заводить вторую копию, которая
+   * рано или поздно разойдётся с URL (кнопка «назад», сброс фильтров, переход
+   * по ссылке). Значение уходит в фильтр по Enter или потере фокуса.
+   */
+  const commitPrice = (key: 'priceMin' | 'priceMax', value: string) => {
+    const next = toNumber(value)
 
-  const debouncedMin = useDebouncedValue(priceMin)
-  const debouncedMax = useDebouncedValue(priceMax)
+    if (next !== filters[key]) onChange({ [key]: next })
+  }
 
-  useEffect(() => {
-    const next = toNumber(debouncedMin)
-
-    if (next !== filters.priceMin) onChange({ priceMin: next })
-    // Фильтры — единственный источник истины; onChange стабилен по ссылке достаточно,
-    // но повторный вызов при его смене привёл бы к циклу.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedMin])
-
-  useEffect(() => {
-    const next = toNumber(debouncedMax)
-
-    if (next !== filters.priceMax) onChange({ priceMax: next })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedMax])
-
-  const handleReset = () => {
-    setPriceMin('')
-    setPriceMax('')
-    onReset()
+  const priceKeyHandler = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      event.currentTarget.blur()
+    }
   }
 
   return (
@@ -117,25 +107,30 @@ export function TourFilters({
         </SelectField>
 
         <InputField
+          key={`priceMin-${filters.priceMin ?? ''}`}
           label="Цена от, ₸"
           type="number"
           inputMode="numeric"
           min={0}
           step={5000}
           placeholder="180 000"
-          value={priceMin}
-          onChange={(event) => setPriceMin(event.target.value)}
+          hint="Enter или переход к другому полю применяет цену"
+          defaultValue={filters.priceMin ?? ''}
+          onBlur={(event) => commitPrice('priceMin', event.target.value)}
+          onKeyDown={priceKeyHandler}
         />
 
         <InputField
+          key={`priceMax-${filters.priceMax ?? ''}`}
           label="Цена до, ₸"
           type="number"
           inputMode="numeric"
           min={0}
           step={5000}
           placeholder="2 500 000"
-          value={priceMax}
-          onChange={(event) => setPriceMax(event.target.value)}
+          defaultValue={filters.priceMax ?? ''}
+          onBlur={(event) => commitPrice('priceMax', event.target.value)}
+          onKeyDown={priceKeyHandler}
         />
 
         <div className="grid grid-cols-2 gap-3">
@@ -159,7 +154,7 @@ export function TourFilters({
       {activeCount > 0 ? (
         <div className="flex items-center justify-between gap-3">
           <p className="text-ink-500 text-sm">Активных фильтров: {activeCount}</p>
-          <Button variant="ghost" size="sm" onClick={handleReset}>
+          <Button variant="ghost" size="sm" onClick={onReset}>
             Сбросить всё
           </Button>
         </div>

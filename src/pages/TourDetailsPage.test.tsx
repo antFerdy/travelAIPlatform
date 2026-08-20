@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 import { Route, Routes, useLocation } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -105,6 +105,26 @@ describe('TourDetailsPage', () => {
     const { user } = renderTourPage()
 
     await user.click(await screen.findByRole('button', { name: 'Показать фото 2' }))
+
+    expect(screen.getByRole('img', { name: 'Тбилиси, Грузия' })).toHaveAttribute(
+      'src',
+      'https://example.test/2.jpg',
+    )
+  })
+
+  it('не залипает на заглушке после переключения на рабочее фото', async () => {
+    vi.spyOn(api, 'getTour').mockResolvedValue(TOUR)
+
+    const { user } = renderTourPage()
+
+    const main = await screen.findByRole('img', { name: 'Тбилиси, Грузия' })
+
+    // Первое фото не загрузилось — показываем заглушку
+    fireEvent.error(main)
+    expect(main).toHaveAttribute('src', '/tour-placeholder.svg')
+
+    // Второе фото рабочее: заглушка обязана уступить ему место
+    await user.click(screen.getByRole('button', { name: 'Показать фото 2' }))
 
     expect(screen.getByRole('img', { name: 'Тбилиси, Грузия' })).toHaveAttribute(
       'src',

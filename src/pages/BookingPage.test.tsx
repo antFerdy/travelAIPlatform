@@ -78,6 +78,41 @@ describe('BookingPage', () => {
     })
   })
 
+  it('снимает вылет из ссылки, если такого вылета у тура нет', async () => {
+    vi.spyOn(api, 'getTour').mockResolvedValue(TOUR)
+    const createBooking = vi.spyOn(api, 'createBooking')
+
+    const { user } = renderBookingPage('/tours/ge-tbilisi-01/book?departureId=dep-999')
+
+    // Значение из строки запроса не должно пережить загрузку тура
+    await waitFor(() => {
+      expect(screen.getByLabelText('Дата вылета')).toHaveValue('')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Забронировать без оплаты' }))
+
+    expect(await screen.findByText('Выберите дату вылета')).toBeInTheDocument()
+    expect(createBooking).not.toHaveBeenCalled()
+  })
+
+  it('снимает вылет из ссылки, если он уже состоялся', async () => {
+    vi.spyOn(api, 'getTour').mockResolvedValue(
+      makeTour({
+        id: 'ge-tbilisi-01',
+        departures: [
+          makeDeparture({ id: 'dep-past', startDate: '2020-01-01', endDate: '2020-01-05' }),
+          makeDeparture({ id: 'dep-01', startDate: '2027-01-15', endDate: '2027-01-19' }),
+        ],
+      }),
+    )
+
+    renderBookingPage('/tours/ge-tbilisi-01/book?departureId=dep-past')
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Дата вылета')).toHaveValue('')
+    })
+  })
+
   it('создаёт бронь и уводит на подтверждение', async () => {
     vi.spyOn(api, 'getTour').mockResolvedValue(TOUR)
     const createBooking = vi

@@ -43,6 +43,44 @@ describe('ToursPage', () => {
     expect(screen.getByRole('button', { name: 'Сбросить фильтры' })).toBeInTheDocument()
   })
 
+  it('применяет цену, когда поле теряет фокус', async () => {
+    const { user } = renderWithProviders(<ToursPage />, { route: '/tours' })
+
+    await screen.findByText(/18 туров/)
+
+    await user.type(screen.getByLabelText('Цена от, ₸'), '2000000')
+
+    // Пока фокус в поле, фильтр не применяется — URL не переписывается на каждую цифру
+    expect(screen.queryByText(/Активных фильтров/)).not.toBeInTheDocument()
+
+    await user.tab()
+
+    expect(await screen.findByText('Активных фильтров: 1')).toBeInTheDocument()
+  })
+
+  it('применяет цену по нажатию Enter', async () => {
+    const { user } = renderWithProviders(<ToursPage />, { route: '/tours' })
+
+    await screen.findByText(/18 туров/)
+
+    await user.type(screen.getByLabelText('Цена до, ₸'), '200000{Enter}')
+
+    expect(await screen.findByText('Активных фильтров: 1')).toBeInTheDocument()
+  })
+
+  it('очищает поля цены вместе со сбросом фильтров', async () => {
+    const { user } = renderWithProviders(<ToursPage />, { route: '/tours?priceMin=99000000' })
+
+    expect(await screen.findByLabelText('Цена от, ₸')).toHaveValue(99000000)
+
+    await user.click(await screen.findByRole('button', { name: 'Сбросить фильтры' }))
+
+    // Иначе в поле висел бы фильтр, которого в выдаче уже нет
+    await waitFor(() => {
+      expect(screen.getByLabelText('Цена от, ₸')).toHaveValue(null)
+    })
+  })
+
   it('показывает ошибку с возможностью повтора, когда каталог не загрузился', async () => {
     vi.spyOn(api, 'listTours').mockRejectedValue(new ApiError(500, 'Сервер недоступен'))
 
