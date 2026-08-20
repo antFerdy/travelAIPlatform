@@ -1,3 +1,31 @@
+# Инструменты
 .claude
 .playwright-mcp
+
+# Зависимости и сборка
 node_modules
+dist
+coverage
+*.local
+
+# Playwright. Без ведущего слэша: артефакты есть и в корне, и во frontend/
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
+# Локальные переопределения окружения — не коммитим
+.env
+.env.local
+.env.*.local
+
+# Редакторы
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.swp
+
+# Логи
+npm-debug.log*
+yarn-error.log*
