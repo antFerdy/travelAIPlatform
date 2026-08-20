@@ -2,6 +2,8 @@
 
 Go + Echo + PostgreSQL backend for the tour-sales platform. Spec:
 `../docs/superpowers/specs/2026-08-20-tours-backend-design.md`.
+Full API contract (request/response shapes, validation, error codes):
+[`api.md`](./api.md).
 
 ## Local setup
 
