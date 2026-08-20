@@ -12,7 +12,8 @@ import { mkdir } from 'node:fs/promises'
 import { chromium, devices } from '@playwright/test'
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173'
-const OUT_DIR = 'docs/screenshots'
+// Скриншоты лежат в общей папке репозитория: на них ссылается корневой README.
+const OUT_DIR = '../docs/screenshots'
 
 await mkdir(OUT_DIR, { recursive: true })
 

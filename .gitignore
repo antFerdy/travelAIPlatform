@@ -3,11 +3,12 @@ dist
 coverage
 *.local
 
-# Playwright
-/test-results/
-/playwright-report/
-/blob-report/
-/.playwright/
+# Playwright. Без ведущего слэша: артефакты лежат в frontend/, а .gitignore
+# общий на репозиторий, где рядом появятся другие пакеты.
+test-results/
+playwright-report/
+blob-report/
+.playwright/
 
 # Локальные переопределения окружения — не коммитим
 .env
