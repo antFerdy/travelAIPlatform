@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 
+import { ApiError } from '@/api'
 import { cn } from '@/lib/cn'
 
 import { Button } from './Button'
@@ -48,7 +49,14 @@ export type ErrorStateProps = {
 }
 
 export function ErrorState({ title = 'Не удалось загрузить данные', error, onRetry }: ErrorStateProps) {
-  const message = error instanceof Error ? error.message : 'Неизвестная ошибка'
+  // У ApiError есть формулировка для пользователя: технический текст 500-й
+  // или сетевого сбоя показывать незачем.
+  const message =
+    error instanceof ApiError
+      ? error.userMessage
+      : error instanceof Error
+        ? error.message
+        : 'Неизвестная ошибка'
 
   return (
     <div

@@ -2,35 +2,29 @@ import { useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router'
 import { z } from 'zod'
 
-import { SORT_OPTIONS } from '@/api'
-import { MAX_GUESTS, MIN_GUESTS } from '@/types/booking'
-
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 
 /**
- * Каждое поле гасит собственную ошибку через `.catch`: один битый параметр
- * в ссылке не должен обнулять остальные фильтры.
+ * Набор фильтров повторяет query-параметры `GET /api/v1/tours` — ничего,
+ * чего бэкенд не умеет, здесь нет. Каждое поле гасит собственную ошибку
+ * через `.catch`: один битый параметр в ссылке не должен обнулять остальные.
  */
 const filtersSchema = z.object({
-  country: z.string().min(1).optional().catch(undefined),
-  priceMin: z.coerce.number().int().nonnegative().optional().catch(undefined),
-  priceMax: z.coerce.number().int().nonnegative().optional().catch(undefined),
+  countryId: z.coerce.number().int().positive().optional().catch(undefined),
+  minPrice: z.coerce.number().nonnegative().optional().catch(undefined),
+  maxPrice: z.coerce.number().nonnegative().optional().catch(undefined),
   dateFrom: isoDate.optional().catch(undefined),
   dateTo: isoDate.optional().catch(undefined),
-  guests: z.coerce.number().int().min(MIN_GUESTS).max(MAX_GUESTS).optional().catch(undefined),
-  sort: z.enum(SORT_OPTIONS).optional().catch(undefined),
 })
 
 export type TourFilters = z.infer<typeof filtersSchema>
 
 export const FILTER_KEYS = [
-  'country',
-  'priceMin',
-  'priceMax',
+  'countryId',
+  'minPrice',
+  'maxPrice',
   'dateFrom',
   'dateTo',
-  'guests',
-  'sort',
 ] as const satisfies readonly (keyof TourFilters)[]
 
 export function parseFilters(params: URLSearchParams): TourFilters {
@@ -48,7 +42,7 @@ export function parseFilters(params: URLSearchParams): TourFilters {
 }
 
 export function countActiveFilters(filters: TourFilters): number {
-  return FILTER_KEYS.filter((key) => key !== 'sort' && filters[key] !== undefined).length
+  return FILTER_KEYS.filter((key) => filters[key] !== undefined).length
 }
 
 /**

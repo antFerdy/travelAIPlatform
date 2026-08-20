@@ -22,9 +22,10 @@ export default defineConfig({
     // качать незачем.
     { name: 'mobile', use: { ...devices['Pixel 7'] } },
   ],
-  // E2E гоняется против прод-сборки в mock-режиме: backend не нужен.
+  // E2E гоняется против прод-сборки, где бэкенд подменён браузерным MSW:
+  // поднимать Go-сервер с базой ради сквозных сценариев не нужно.
   webServer: {
-    command: 'npm run build && npm run preview',
+    command: 'npm run build:e2e && npm run preview',
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,

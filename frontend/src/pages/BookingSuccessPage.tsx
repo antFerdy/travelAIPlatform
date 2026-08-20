@@ -4,13 +4,24 @@ import { PageContainer } from '@/components/layout/Layout'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { ErrorState, Skeleton } from '@/components/ui/States'
-import { useBooking, useTour } from '@/hooks/useTours'
-import { formatDateRange, formatGuests, formatPrice } from '@/lib/format'
+import { ApiError } from '@/api'
+import { parseNumericParam, useBooking, useCountryLookup, useTour } from '@/hooks/useTours'
+import { formatDateRange, formatPeople, formatPrice } from '@/lib/format'
+import { BOOKING_STATUS_LABELS } from '@/types/booking'
 
 export function BookingSuccessPage() {
   const { bookingId } = useParams<{ bookingId: string }>()
-  const booking = useBooking(bookingId)
+  const booking = useBooking(parseNumericParam(bookingId))
   const tour = useTour(booking.data?.tourId)
+  const countryById = useCountryLookup()
+
+  if (bookingId !== undefined && parseNumericParam(bookingId) === undefined) {
+    return (
+      <PageContainer className="py-16">
+        <ErrorState title="Бронь не найдена" error={new ApiError(404, 'Некорректный номер брони')} />
+      </PageContainer>
+    )
+  }
 
   if (booking.isPending) {
     return (
@@ -33,9 +44,7 @@ export function BookingSuccessPage() {
     )
   }
 
-  const departure = tour.data?.departures.find(
-    (candidate) => candidate.id === booking.data.departureId,
-  )
+  const countryName = tour.data ? countryById.get(tour.data.countryId)?.name : undefined
 
   return (
     <PageContainer className="py-12">
@@ -46,40 +55,38 @@ export function BookingSuccessPage() {
           </span>
           <h1 className="text-ink-900 text-2xl font-semibold sm:text-3xl">Бронь принята</h1>
           <p className="text-ink-500">
-            Номер брони <strong className="text-ink-900">{booking.data.id}</strong>. Мы отправили
-            детали на {booking.data.customer.email}.
+            Номер брони <strong className="text-ink-900">№{booking.data.id}</strong>. Детали
+            отправлены на {booking.data.customerEmail}.
           </p>
-          <Badge tone="sand">Ожидает подтверждения менеджера</Badge>
+          <Badge tone="sand">{BOOKING_STATUS_LABELS[booking.data.status]}</Badge>
         </div>
 
         <div className="rounded-2xl bg-white p-5 shadow-sm">
           <dl className="flex flex-col gap-3">
             <Row label="Тур" value={tour.data?.title ?? '—'} />
-            <Row
-              label="Направление"
-              value={tour.data ? `${tour.data.country}, ${tour.data.city}` : '—'}
-            />
+            <Row label="Направление" value={countryName ?? '—'} />
             <Row
               label="Даты"
-              value={departure ? formatDateRange(departure.startDate, departure.endDate) : '—'}
+              value={tour.data ? formatDateRange(tour.data.startDate, tour.data.endDate) : '—'}
             />
-            <Row label="Гостей" value={formatGuests(booking.data.guests)} />
-            <Row label="Заказчик" value={booking.data.customer.name} />
-            <Row label="Телефон" value={booking.data.customer.phone} />
-            {booking.data.comment ? <Row label="Комментарий" value={booking.data.comment} /> : null}
+            <Row label="Человек" value={formatPeople(booking.data.numPeople)} />
+            <Row label="Заказчик" value={booking.data.customerName} />
+            <Row label="Телефон" value={booking.data.customerPhone} />
 
-            <div className="border-ink-200 flex items-baseline justify-between border-t pt-3">
-              <dt className="text-ink-700 font-medium">Сумма</dt>
-              <dd className="text-ink-900 text-xl font-semibold">
-                {formatPrice(booking.data.total)}
-              </dd>
-            </div>
+            {tour.data ? (
+              <div className="border-ink-200 flex items-baseline justify-between border-t pt-3">
+                <dt className="text-ink-700 font-medium">Стоимость тура</dt>
+                <dd className="text-ink-900 text-xl font-semibold">
+                  {formatPrice(tour.data.price, tour.data.currency)}
+                </dd>
+              </div>
+            ) : null}
           </dl>
         </div>
 
-        <p className="text-ink-600 rounded-xl bg-brand-50 px-4 py-3 text-sm">
-          Оплата не требуется. Менеджер свяжется с вами в течение рабочего дня, подтвердит места и
-          расскажет про оплату.
+        <p className="text-ink-600 bg-brand-50 rounded-xl px-4 py-3 text-sm">
+          Оплата не требуется. Менеджер свяжется с вами в течение рабочего дня, подтвердит бронь и
+          назовёт итоговую сумму на {formatPeople(booking.data.numPeople)}.
         </p>
 
         <div className="flex justify-center">

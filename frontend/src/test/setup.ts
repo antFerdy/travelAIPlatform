@@ -1,13 +1,31 @@
 import '@testing-library/jest-dom/vitest'
 
 import { cleanup } from '@testing-library/react'
-import { afterEach, beforeEach } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest'
 
-// Каждый тест независим: см. ai-rules/frontend.md → Output Contracts → Tests
+import { API_ORIGIN, mswServer, resetBackendState } from './mswServer'
+
+/**
+ * Все тесты идут против заглушки бэкенда: мок-адаптера у приложения нет,
+ * данные всегда приходят по HTTP. onUnhandledRequest: 'error' ловит запросы
+ * к ручкам, которых нет в контракте.
+ */
+beforeAll(() => {
+  vi.stubEnv('VITE_API_BASE_URL', API_ORIGIN)
+  mswServer.listen({ onUnhandledRequest: 'error' })
+})
+
 beforeEach(() => {
   localStorage.clear()
+  resetBackendState()
 })
 
 afterEach(() => {
   cleanup()
+  mswServer.resetHandlers()
+})
+
+afterAll(() => {
+  mswServer.close()
+  vi.unstubAllEnvs()
 })

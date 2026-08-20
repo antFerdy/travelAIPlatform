@@ -1,95 +1,89 @@
 import { screen } from '@testing-library/react'
+import { HttpResponse, http } from 'msw'
 import { Route, Routes } from 'react-router'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
-import { ApiError, api } from '@/api'
-import { makeBooking, makeDeparture, makeTour } from '@/test/factories'
+import { api } from '@/api'
+import { TOURS, makeBookingDraft } from '@/test/fixtures'
+import { API_ORIGIN, mswServer } from '@/test/mswServer'
 import { renderWithProviders } from '@/test/renderWithProviders'
+import type { Booking } from '@/types/booking'
 
 import { BookingSuccessPage } from './BookingSuccessPage'
 
-const TOUR = makeTour({
-  id: 'ge-tbilisi-01',
-  title: 'Тбилиси: серные бани и Мцхета',
-  country: 'Грузия',
-  city: 'Тбилиси',
-  departures: [
-    makeDeparture({ id: 'dep-01', startDate: '2027-01-15', endDate: '2027-01-19', seatsLeft: 20 }),
-  ],
-})
+const TOUR = TOURS[0]!
 
-const BOOKING = makeBooking({
-  id: 'BK-8BED25',
-  tourId: TOUR.id,
-  departureId: 'dep-01',
-  guests: 3,
-  total: 527_250,
-  customer: { name: 'Айгерим Сериковна', email: 'aigerim@example.kz', phone: '+7 701 000 00 00' },
-})
-
-function renderSuccessPage(route = '/bookings/BK-8BED25') {
+function renderSuccessPage(bookingId: number | string) {
   return renderWithProviders(
     <Routes>
       <Route path="/bookings/:bookingId" element={<BookingSuccessPage />} />
     </Routes>,
-    { route },
+    { route: `/bookings/${bookingId}` },
   )
 }
 
-afterEach(() => {
-  vi.restoreAllMocks()
-})
-
 describe('BookingSuccessPage', () => {
-  it('показывает номер брони и её состав', async () => {
-    vi.spyOn(api, 'getBooking').mockResolvedValue(BOOKING)
-    vi.spyOn(api, 'getTour').mockResolvedValue(TOUR)
+  let booking: Booking
 
-    renderSuccessPage()
+  beforeEach(async () => {
+    booking = await api.createBooking(makeBookingDraft({ tourId: TOUR.id, numPeople: 3 }))
+  })
+
+  it('показывает номер брони и её состав', async () => {
+    renderSuccessPage(booking.id)
 
     expect(await screen.findByRole('heading', { name: 'Бронь принята' })).toBeInTheDocument()
-    expect(screen.getByText('BK-8BED25')).toBeInTheDocument()
+    expect(screen.getByText(`№${booking.id}`)).toBeInTheDocument()
+    expect(screen.getByText('3 человека')).toBeInTheDocument()
+    expect(screen.getByText('Айгерим Сериковна')).toBeInTheDocument()
 
-    // Тур подгружается вторым запросом, после самой брони.
-    expect(await screen.findByText('Тбилиси: серные бани и Мцхета')).toBeInTheDocument()
-    expect(screen.getByText('Грузия, Тбилиси')).toBeInTheDocument()
-    expect(screen.getByText('3 гостя')).toBeInTheDocument()
-    expect(screen.getByText(/527\D?250\s?₸/)).toBeInTheDocument()
+    // Тур подгружается вторым запросом, после самой брони
+    expect(await screen.findByText(TOUR.title)).toBeInTheDocument()
+    expect(screen.getByText('ОАЭ')).toBeInTheDocument()
   })
 
-  it('явно сообщает, что оплата не требуется', async () => {
-    vi.spyOn(api, 'getBooking').mockResolvedValue(BOOKING)
-    vi.spyOn(api, 'getTour').mockResolvedValue(TOUR)
+  it('переводит статус брони на русский', async () => {
+    renderSuccessPage(booking.id)
 
-    renderSuccessPage()
+    expect(await screen.findByText('Ожидает подтверждения менеджера')).toBeInTheDocument()
+  })
+
+  it('явно сообщает, что оплата не требуется и сумму назовёт менеджер', async () => {
+    renderSuccessPage(booking.id)
 
     expect(await screen.findByText(/Оплата не требуется/)).toBeInTheDocument()
-    expect(screen.getByText('Ожидает подтверждения менеджера')).toBeInTheDocument()
+    // Сервер бронирования суммы не возвращает — обещать итог мы не вправе
+    expect(screen.getByText(/назовёт итоговую сумму на 3 человека/)).toBeInTheDocument()
   })
 
-  it('показывает даты выбранного вылета', async () => {
-    vi.spyOn(api, 'getBooking').mockResolvedValue(BOOKING)
-    vi.spyOn(api, 'getTour').mockResolvedValue(TOUR)
+  it('показывает стоимость тура, а не выдуманный итог по числу человек', async () => {
+    renderSuccessPage(booking.id)
 
-    renderSuccessPage()
-
-    expect(await screen.findByText(/19 января 2027/)).toBeInTheDocument()
+    expect(await screen.findByText('Стоимость тура')).toBeInTheDocument()
+    expect(screen.getByText(new RegExp(String(TOUR.price).slice(0, 3)))).toBeInTheDocument()
   })
 
-  it('не падает, пока тур ещё не догрузился', async () => {
-    vi.spyOn(api, 'getBooking').mockResolvedValue(BOOKING)
-    vi.spyOn(api, 'getTour').mockRejectedValue(new ApiError(404, 'Тур снят с продажи'))
+  it('не падает, если тур больше не отдаётся', async () => {
+    mswServer.use(
+      http.get(`${API_ORIGIN}/api/v1/tours/:id`, () =>
+        HttpResponse.json({ error: 'tour not found' }, { status: 404 }),
+      ),
+    )
 
-    renderSuccessPage()
+    renderSuccessPage(booking.id)
 
-    // Номер брони важнее названия тура: пользователь должен получить его в любом случае.
-    expect(await screen.findByText('BK-8BED25')).toBeInTheDocument()
+    // Номер брони важнее названия тура: пользователь должен получить его в любом случае
+    expect(await screen.findByText(`№${booking.id}`)).toBeInTheDocument()
   })
 
   it('сообщает, что бронь не найдена', async () => {
-    vi.spyOn(api, 'getBooking').mockRejectedValue(new ApiError(404, 'Бронь BK-000000 не найдена'))
+    renderSuccessPage(4242)
 
-    renderSuccessPage('/bookings/BK-000000')
+    expect(await screen.findByRole('heading', { name: 'Бронь не найдена' })).toBeInTheDocument()
+  })
+
+  it('сообщает о некорректном номере в адресе', async () => {
+    renderSuccessPage('не-число')
 
     expect(await screen.findByRole('heading', { name: 'Бронь не найдена' })).toBeInTheDocument()
   })

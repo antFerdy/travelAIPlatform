@@ -1,12 +1,10 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  /** Какая реализация слоя данных подставляется в `api`. См. .env.example */
-  readonly VITE_API_MODE?: 'mock' | 'http'
-  /** База для HTTP-адаптера. Обязательна при VITE_API_MODE=http. */
+  /** Базовый адрес бэкенда без /api/v1. Обязателен. См. .env.example */
   readonly VITE_API_BASE_URL?: string
-  /** Искусственная задержка мок-адаптера в миллисекундах. */
-  readonly VITE_MOCK_LATENCY?: string
+  /** Только для e2e: подменить бэкенд браузерным MSW. */
+  readonly VITE_ENABLE_MSW?: string
 }
 
 interface ImportMeta {

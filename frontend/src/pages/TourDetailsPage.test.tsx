@@ -1,142 +1,74 @@
-import { fireEvent, screen } from '@testing-library/react'
-import { Route, Routes, useLocation } from 'react-router'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { screen } from '@testing-library/react'
+import { HttpResponse, http } from 'msw'
+import { Route, Routes } from 'react-router'
+import { describe, expect, it } from 'vitest'
 
-import { ApiError, api } from '@/api'
-import { makeDeparture, makeTour } from '@/test/factories'
+import { TOURS } from '@/test/fixtures'
+import { API_ORIGIN, mswServer } from '@/test/mswServer'
 import { renderWithProviders } from '@/test/renderWithProviders'
 
 import { TourDetailsPage } from './TourDetailsPage'
 
-const TOUR = makeTour({
-  id: 'ge-tbilisi-01',
-  title: 'Тбилиси: серные бани и Мцхета',
-  country: 'Грузия',
-  city: 'Тбилиси',
-  description: 'Отель в Сололаки, рядом с банями Абанотубани.',
-  images: ['https://example.test/1.jpg', 'https://example.test/2.jpg'],
-  includes: ['Перелёт', 'Трансфер', 'Экскурсия в Мцхету'],
-  departures: [
-    makeDeparture({ id: 'dep-01', startDate: '2027-01-15', endDate: '2027-01-19', seatsLeft: 20 }),
-    makeDeparture({ id: 'dep-02', startDate: '2027-02-10', endDate: '2027-02-14', seatsLeft: 0 }),
-    makeDeparture({ id: 'dep-03', startDate: '2020-01-01', endDate: '2020-01-05', seatsLeft: 9 }),
-  ],
-})
+const TOUR = TOURS[0]!
 
-function LocationProbe() {
-  const location = useLocation()
-
-  return <p>переход: {location.pathname + location.search}</p>
-}
-
-function renderTourPage() {
+function renderTourPage(route = `/tours/${TOUR.id}`) {
   return renderWithProviders(
     <Routes>
       <Route path="/tours/:tourId" element={<TourDetailsPage />} />
-      <Route path="/tours/:tourId/book" element={<LocationProbe />} />
     </Routes>,
-    { route: '/tours/ge-tbilisi-01' },
+    { route },
   )
 }
 
-afterEach(() => {
-  vi.restoreAllMocks()
-})
-
 describe('TourDetailsPage', () => {
-  it('показывает описание тура и состав пакета', async () => {
-    vi.spyOn(api, 'getTour').mockResolvedValue(TOUR)
-
+  it('показывает название, описание и длительность тура', async () => {
     renderTourPage()
 
-    expect(
-      await screen.findByRole('heading', { name: 'Тбилиси: серные бани и Мцхета' }),
-    ).toBeInTheDocument()
-    expect(screen.getByText(/Отель в Сололаки/)).toBeInTheDocument()
-    expect(screen.getByText('Экскурсия в Мцхету')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: TOUR.title })).toBeInTheDocument()
+    expect(screen.getByText(TOUR.description)).toBeInTheDocument()
+    expect(screen.getAllByText(`${TOUR.durationDays} ночей`).length).toBeGreaterThan(0)
   })
 
-  it('не предлагает вылеты, которые уже состоялись', async () => {
-    vi.spyOn(api, 'getTour').mockResolvedValue(TOUR)
-
+  it('показывает даты поездки, заданные туром', async () => {
     renderTourPage()
 
     await screen.findByRole('heading', { name: TOUR.title })
 
-    expect(screen.queryByText(/января 2020/)).not.toBeInTheDocument()
+    expect(screen.getByText('Начало')).toBeInTheDocument()
+    expect(screen.getByText('Окончание')).toBeInTheDocument()
   })
 
-  it('не даёт выбрать вылет без свободных мест', async () => {
-    vi.spyOn(api, 'getTour').mockResolvedValue(TOUR)
-
+  it('подставляет название страны из справочника', async () => {
     renderTourPage()
 
-    const soldOut = await screen.findByRole('button', { name: /мест нет/ })
-
-    expect(soldOut).toBeDisabled()
+    expect(await screen.findAllByText('ОАЭ')).not.toHaveLength(0)
   })
 
-  it('переносит выбранный вылет в ссылку на бронирование', async () => {
-    vi.spyOn(api, 'getTour').mockResolvedValue(TOUR)
+  it('ведёт на форму бронирования', async () => {
+    renderTourPage()
 
-    const { user } = renderTourPage()
+    const link = await screen.findByRole('link', { name: 'Забронировать' })
 
-    await user.click(await screen.findByRole('button', { name: /осталось 20 мест/ }))
-    await user.click(screen.getByRole('button', { name: 'Забронировать' }))
-
-    expect(
-      await screen.findByText('переход: /tours/ge-tbilisi-01/book?departureId=dep-01'),
-    ).toBeInTheDocument()
-  })
-
-  it('пропускает на бронирование и без выбранного вылета', async () => {
-    vi.spyOn(api, 'getTour').mockResolvedValue(TOUR)
-
-    const { user } = renderTourPage()
-
-    await user.click(await screen.findByRole('button', { name: 'Забронировать' }))
-
-    expect(await screen.findByText('переход: /tours/ge-tbilisi-01/book')).toBeInTheDocument()
-  })
-
-  it('переключает главное фото галереи', async () => {
-    vi.spyOn(api, 'getTour').mockResolvedValue(TOUR)
-
-    const { user } = renderTourPage()
-
-    await user.click(await screen.findByRole('button', { name: 'Показать фото 2' }))
-
-    expect(screen.getByRole('img', { name: 'Тбилиси, Грузия' })).toHaveAttribute(
-      'src',
-      'https://example.test/2.jpg',
-    )
-  })
-
-  it('не залипает на заглушке после переключения на рабочее фото', async () => {
-    vi.spyOn(api, 'getTour').mockResolvedValue(TOUR)
-
-    const { user } = renderTourPage()
-
-    const main = await screen.findByRole('img', { name: 'Тбилиси, Грузия' })
-
-    // Первое фото не загрузилось — показываем заглушку
-    fireEvent.error(main)
-    expect(main).toHaveAttribute('src', '/tour-placeholder.svg')
-
-    // Второе фото рабочее: заглушка обязана уступить ему место
-    await user.click(screen.getByRole('button', { name: 'Показать фото 2' }))
-
-    expect(screen.getByRole('img', { name: 'Тбилиси, Грузия' })).toHaveAttribute(
-      'src',
-      'https://example.test/2.jpg',
-    )
+    expect(link).toHaveAttribute('href', `/tours/${TOUR.id}/book`)
   })
 
   it('показывает ошибку, когда тур не найден', async () => {
-    vi.spyOn(api, 'getTour').mockRejectedValue(new ApiError(404, 'Тур не найден'))
+    renderTourPage('/tours/9999')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не найдено')
+  })
+
+  it('сообщает о некорректном адресе вместо вечной загрузки', async () => {
+    renderTourPage('/tours/не-число')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Тур не найден')
+  })
+
+  it('сообщает, что сервер недоступен, вместо технической ошибки fetch', async () => {
+    mswServer.use(http.get(`${API_ORIGIN}/api/v1/tours/:id`, () => HttpResponse.error()))
 
     renderTourPage()
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Тур не найден')
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Сервер недоступен/)
   })
 })

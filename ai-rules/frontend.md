@@ -126,8 +126,9 @@ AI — исполнитель, а не советчик. Получив зада
 Выполняются из папки `frontend/` — приложение лежит там, в корне репозитория его нет.
 
 ```
-npm run dev         # dev-сервер
+npm run dev         # dev-сервер (нужен запущенный бэкенд)
 npm run build       # сборка (включает typecheck)
+npm run build:e2e   # сборка с браузерной заглушкой бэкенда, для e2e
 npm run preview     # прод-сборка локально
 npm run typecheck   # tsc --noEmit
 npm run lint        # eslint
@@ -183,127 +184,143 @@ npm run test:e2e    # playwright
 
 # Output Contracts
 
-## JSON — форма данных
+Источник истины — [`docs/superpowers/specs/api.md`](../docs/superpowers/specs/api.md).
+Фронтенд не изобретает свою модель данных: он повторяет ту, что отдаёт бэкенд,
+и переводит её в camelCase на границе слоя данных.
 
-Единый источник истины для мок-файла и для будущего backend-ответа.
+## JSON — что приходит по проводу
+
+Бэкенд говорит в snake_case. Ниже — реальные ответы, к которым фронтенд обязан
+быть готов.
 
 ```jsonc
-// Tour
+// GET /api/v1/tours → items[]
 {
-  "id": "tr-antalya-01",
-  "title": "Анталия: пляжный отдых «всё включено»",
-  "country": "Турция",
-  "city": "Анталия",
-  "description": "Текст на русском, 2–4 предложения.",
-  "images": ["https://…", "https://…"],
-  "pricePerPerson": 420000,          // целое, тенге, за одного гостя
+  "id": 5,                                  // int, не строка
+  "title": "Стамбул: Kaya Madrid Hotel, 9 ночей",
+  "description": "Городской отель в Стамбуле…",
+  "country_id": 2,                          // FK на /countries
+  "price": 735000,                          // число, 2 знака точности
   "currency": "KZT",
-  "nights": 7,
-  "rating": 4.6,                     // 0–5, один знак после запятой
-  "reviewsCount": 214,
-  "hotelStars": 5,                   // 1–5
-  "mealPlan": "AI",                  // RO | BB | HB | FB | AI
-  "includes": ["Перелёт", "Трансфер", "Страховка"],
-  "departures": [
-    {
-      "id": "dep-01",
-      "startDate": "2026-09-12",     // ISO 8601, только дата
-      "endDate": "2026-09-19",
-      "seatsLeft": 8
-    }
-  ]
+  "start_date": "2026-09-05",               // YYYY-MM-DD
+  "end_date": "2026-09-14",
+  "duration_days": 9,                       // ночи
+  "category": "city",                       // необязательное, множество открытое
+  "image_url": "https://…",                 // необязательное, одно фото
+  "created_at": "2026-08-20T15:51:12Z"      // RFC 3339
 }
 ```
 
 ```jsonc
-// Booking
+// GET /api/v1/countries
+{ "id": 2, "name": "Турция", "code": "TR" }
+```
+
+```jsonc
+// POST /api/v1/bookings → 201
 {
-  "id": "BK-7F3A21",                 // человекочитаемый номер брони
-  "tourId": "tr-antalya-01",
-  "departureId": "dep-01",
-  "customer": { "name": "…", "email": "…", "phone": "…" },
-  "guests": 2,                       // 1–10
-  "comment": "",
-  "total": 840000,
-  "currency": "KZT",
-  "status": "pending",               // оплаты нет: всегда pending
-  "createdAt": "2026-08-20T10:15:00.000Z"
+  "id": 1,
+  "tour_id": 5,
+  "customer_name": "Айгерим Сериковна",
+  "customer_email": "aigerim@example.kz",
+  "customer_phone": "+7 701 000 00 00",
+  "num_people": 2,
+  "status": "pending",                      // pending | confirmed | cancelled
+  "created_at": "2026-08-20T16:12:08Z"
 }
 ```
 
-Правила: денежные суммы — целые числа в тенге, без дробной части и без разделителей. Даты вылета — `YYYY-MM-DD`, отметки времени — ISO 8601 в UTC. Отсутствующее значение — пропущенное поле или `null`, не пустая строка.
+```jsonc
+// Любой ответ не-2xx
+{ "error": "tour 9999 not found" }
+```
+
+**Чего в контракте нет и чего фронтенд не должен показывать:** рейтингов,
+звёзд отеля, типа питания, галереи, числа свободных мест, списка вылетов,
+сортировки, итоговой суммы брони. Показать это — значит выдать выдумку
+за данные оператора.
 
 ## TypeScript — контракт слоя данных
 
 ```ts
 export interface Api {
   listTours(query: TourQuery): Promise<Paginated<Tour>>
-  getTour(id: string): Promise<Tour>
-  listCountries(): Promise<string[]>
+  getTour(id: number): Promise<Tour>
+  listCountries(): Promise<Country[]>
   createBooking(draft: BookingDraft): Promise<Booking>
-  getBooking(id: string): Promise<Booking>
+  getBooking(id: number): Promise<Booking>
 }
 ```
 
-- Ошибки — единый класс `ApiError { status: number; message: string }` в обоих адаптерах.
-- Ненайденный ресурс — `ApiError` со `status: 404`, не `null` и не исключение общего вида.
-- Расширение интерфейса — только правкой `frontend/src/api/contract.ts` и синхронно обоих адаптеров.
+- Внутри приложения — camelCase (`countryId`, `durationDays`, `numPeople`).
+  Перевод делают zod-схемы в `frontend/src/api/schemas.ts`, и это
+  единственное место, где живёт snake_case.
+- Идентификаторы — числа. Строку из параметра маршрута разбирает
+  `parseNumericParam`; непригодное значение приводит к экрану «не найдено»,
+  а не к запросу с мусором.
+- Ошибки — единый `ApiError { status, message }` с `userMessage` для показа
+  пользователю: технический текст 500-й или сетевого сбоя на экран не идёт.
+- Расширение интерфейса — только правкой `frontend/src/api/contract.ts`
+  и синхронно схем.
 
 ## HTTP — контракт к backend
 
-Соблюдается `http`-адаптером; служит спецификацией для backend-роли.
+Соблюдается `frontend/src/api/adapters/http.ts`. Префикс `/api/v1` добавляет
+клиент, `VITE_API_BASE_URL` содержит только origin.
 
-| Метод | Путь | Query / Body | Ответ |
+| Метод | Путь | Параметры | Ответ |
 |---|---|---|---|
-| `GET` | `/tours` | `country`, `priceMin`, `priceMax`, `dateFrom`, `dateTo`, `guests`, `sort`, `page`, `limit` | `200` `Paginated<Tour>` |
+| `GET` | `/tours` | `country_id`, `min_price`, `max_price`, `date_from`, `date_to`, `page`, `limit` | `200` `Paginated<Tour>` · `422` |
 | `GET` | `/tours/:id` | — | `200` `Tour` · `404` |
-| `GET` | `/countries` | — | `200` `string[]` |
-| `POST` | `/bookings` | `BookingDraft` | `201` `Booking` · `400` ошибки валидации |
+| `GET` | `/countries` | — | `200` `Country[]` |
+| `POST` | `/bookings` | `CreateBookingRequest` | `201` `Booking` · `404` · `422` |
 | `GET` | `/bookings/:id` | — | `200` `Booking` · `404` |
 
-```jsonc
-// Paginated<T>
-{ "items": [], "total": 0, "page": 1, "limit": 9 }
-```
+`date_from`/`date_to` отбирают туры, диапазон которых **пересекается**
+с запрошенным, а не вложен в него. Умолчание `limit` — 20, потолок — 100.
 
 ## JSX — контракт компонента
 
 ```tsx
 type TourCardProps = {
   tour: Tour
-  onSelect?: (id: string) => void
+  /** Приходит из справочника стран: в самом туре есть только countryId. */
+  countryName?: string | undefined
 }
 
-export function TourCard({ tour, onSelect }: TourCardProps) { … }
+export function TourCard({ tour, countryName }: TourCardProps) { … }
 ```
 
 - Именованный экспорт; тип props объявлен рядом и назван `<Component>Props`.
-- Компонент не обращается к `api` напрямую — данные приходят через props или через хук из `frontend/src/hooks`.
-- Никаких вычислений цены и дат внутри разметки — только вызов функции из `frontend/src/domain` или `frontend/src/lib/format.ts`.
+- Компонент не обращается к `api` напрямую — данные приходят через props
+  или через хук из `frontend/src/hooks`.
+- Необязательные поля бэкенда (`category`, `image_url`) обязаны иметь
+  осмысленное поведение при отсутствии, а не пустое место.
 - Интерактивный элемент имеет доступное имя: текст внутри либо `aria-label`.
-- Изображение имеет осмысленный `alt` и обработчик `onError` с локальным фолбэком.
+- Изображение имеет осмысленный `alt` и локальный фолбэк.
 
 ## Tests — контракт теста
 
 ```ts
-describe('calculateTotal', () => {
-  it('применяет скидку начиная с третьего гостя', () => {
-    // Arrange
-    const input = { pricePerPerson: 100_000, guests: 3, nights: 7 }
-    // Act
-    const result = calculateTotal(input)
-    // Assert
-    expect(result.discount).toBeGreaterThan(0)
-  })
+it('падает с 422 на некорректном email', async () => {
+  await expect(
+    api.createBooking(makeBookingDraft({ customerEmail: 'не-адрес' })),
+  ).rejects.toMatchObject({ name: 'ApiError', status: 422 })
 })
 ```
 
-- Структура Arrange / Act / Assert; название теста описывает поведение, а не имя функции.
-- Компонентные тесты обращаются к элементам через роли и доступные имена (`getByRole`), а не через классы и `data-testid`.
-- Каждый тест независим: общее состояние сбрасывается в `beforeEach`, `localStorage` очищается.
-- Сеть в юнит-тестах не используется: HTTP-адаптер тестируется поверх MSW.
-- Пороги покрытия: 80% строк и ветвей по `frontend/src/api`, `frontend/src/domain`, `frontend/src/hooks`, `frontend/src/lib`.
+- Структура Arrange / Act / Assert; название теста описывает поведение.
+- Сети нет: запросы перехватывает MSW, а заглушка в
+  `frontend/src/test/handlers.ts` повторяет спецификацию API буква в букву.
+  Расхождение бэкенда с ней обязано валить сборку.
+- Компонентные тесты обращаются к элементам через роли и доступные имена
+  (`getByRole`), а не через классы и `data-testid`.
+- В Playwright строковый `getByText` ищет подстроку: там, где проверяется
+  точная подпись, обязателен `{ exact: true }` — иначе тест пройдёт ложно.
+- Пороги покрытия: 80% строк и ветвей по `frontend/src/api`,
+  `frontend/src/hooks`, `frontend/src/lib`.
 
 ## SQL
 
-Вне зоны ответственности роли. Frontend не формирует и не выполняет SQL-запросы; работа с хранилищем инкапсулирована в backend и описана в его собственном `ai-rules/*.md`.
+Вне зоны ответственности роли. Frontend не формирует и не выполняет SQL;
+работа с хранилищем инкапсулирована в бэкенде.

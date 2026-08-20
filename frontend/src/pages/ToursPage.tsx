@@ -1,15 +1,18 @@
+import type { ReactNode } from 'react'
+
 import { PageContainer } from '@/components/layout/Layout'
 import { TourCard } from '@/components/tours/TourCard'
 import { TourFilters } from '@/components/tours/TourFilters'
 import { Button } from '@/components/ui/Button'
 import { EmptyState, ErrorState, TourCardSkeleton } from '@/components/ui/States'
 import { useTourFilters } from '@/hooks/useTourFilters'
-import { useCountries, useTours } from '@/hooks/useTours'
+import { useCountries, useCountryLookup, useTours } from '@/hooks/useTours'
 import { plural } from '@/lib/format'
 
 export function ToursPage() {
   const { filters, setFilters, resetFilters, activeCount } = useTourFilters()
   const countries = useCountries()
+  const countryById = useCountryLookup()
   const tours = useTours(filters)
 
   const items = tours.data?.pages.flatMap((page) => page.items) ?? []
@@ -20,7 +23,7 @@ export function ToursPage() {
       <div className="mb-6 flex flex-col gap-2">
         <h1 className="text-ink-900 text-2xl font-semibold sm:text-3xl">Туры</h1>
         <p className="text-ink-500 text-sm">
-          Подберите поездку по стране, бюджету и датам вылета. Бронь — без оплаты на сайте.
+          Подберите поездку по стране, бюджету и датам. Бронь — без оплаты на сайте.
         </p>
       </div>
 
@@ -34,17 +37,17 @@ export function ToursPage() {
 
       <div className="mt-8">
         {tours.isPending ? (
-          <ToursGridShell>
+          <ToursGrid>
             {Array.from({ length: 6 }, (_, index) => (
               <TourCardSkeleton key={index} />
             ))}
-          </ToursGridShell>
+          </ToursGrid>
         ) : tours.isError ? (
           <ErrorState error={tours.error} onRetry={() => void tours.refetch()} />
         ) : items.length === 0 ? (
           <EmptyState
             title="Под эти условия туров нет"
-            description="Попробуйте расширить диапазон цен или сдвинуть даты вылета."
+            description="Попробуйте расширить диапазон цен или сдвинуть даты."
             action={
               activeCount > 0 ? (
                 <Button variant="secondary" onClick={resetFilters}>
@@ -59,11 +62,15 @@ export function ToursPage() {
               {total} {plural(total, ['тур', 'тура', 'туров'])}
             </p>
 
-            <ToursGridShell>
+            <ToursGrid>
               {items.map((tour) => (
-                <TourCard key={tour.id} tour={tour} />
+                <TourCard
+                  key={tour.id}
+                  tour={tour}
+                  countryName={countryById.get(tour.countryId)?.name}
+                />
               ))}
-            </ToursGridShell>
+            </ToursGrid>
 
             {tours.hasNextPage ? (
               <div className="mt-8 flex justify-center">
@@ -84,8 +91,6 @@ export function ToursPage() {
   )
 }
 
-function ToursGridShell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
-  )
+function ToursGrid({ children }: { children: ReactNode }) {
+  return <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
 }

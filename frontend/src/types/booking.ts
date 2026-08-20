@@ -1,34 +1,36 @@
-export const MIN_GUESTS = 1
-export const MAX_GUESTS = 10
+export const MIN_PEOPLE = 1
 
-export type BookingCustomer = {
-  name: string
-  email: string
-  phone: string
+/**
+ * Бэкенд требует только num_people > 0. Верхняя граница — ограничение формы,
+ * чтобы выпадающий список оставался обозримым.
+ */
+export const MAX_PEOPLE = 20
+
+export const BOOKING_STATUSES = ['pending', 'confirmed', 'cancelled'] as const
+
+export type BookingStatus = (typeof BOOKING_STATUSES)[number]
+
+export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
+  pending: 'Ожидает подтверждения менеджера',
+  confirmed: 'Подтверждена',
+  cancelled: 'Отменена',
 }
 
-/** То, что отправляется на создание брони. */
+/** Тело POST /api/v1/bookings. */
 export type BookingDraft = {
-  tourId: string
-  departureId: string
-  customer: BookingCustomer
-  guests: number
-  comment?: string
+  tourId: number
+  customerName: string
+  customerEmail: string
+  customerPhone: string
+  numPeople: number
 }
 
 /**
- * Оплаты в продукте нет, поэтому созданная бронь всегда ждёт подтверждения
- * менеджером. Значение выделено в тип, чтобы backend не расширил его молча.
+ * Ответ бэкенда. Суммы здесь нет: бронь — это заявка без расчёта и оплаты.
  */
-export type BookingStatus = 'pending'
-
 export type Booking = BookingDraft & {
-  /** Человекочитаемый номер брони, например BK-7F3A21. */
-  id: string
-  /** Сумма на момент бронирования, целое число тенге. */
-  total: number
-  currency: 'KZT'
+  id: number
   status: BookingStatus
-  /** ISO 8601, UTC. */
+  /** RFC 3339 */
   createdAt: string
 }

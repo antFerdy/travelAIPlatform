@@ -26,7 +26,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
-      include: ['src/api/**', 'src/domain/**', 'src/hooks/**', 'src/lib/**'],
+      include: ['src/api/**', 'src/hooks/**', 'src/lib/**'],
       exclude: ['**/__tests__/**', '**/*.test.ts', '**/*.test.tsx'],
       thresholds: {
         lines: 80,

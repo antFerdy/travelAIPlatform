@@ -1,8 +1,12 @@
 /**
  * Снимает скриншоты для README против уже запущенного preview-сервера.
  *
+ *   npm run build:e2e          # сборка с браузерной заглушкой бэкенда
  *   npm run preview            # в одном терминале
  *   node scripts/screenshots.mjs
+ *
+ * Сборка именно e2e-режима: настоящий Go-сервер с базой ради картинок
+ * поднимать незачем, а заглушка отдаёт те же данные, что и он.
  *
  * Отдельный скрипт, а не тест: это генерация артефакта документации,
  * ей нечего делать в наборе проверок.
@@ -47,24 +51,32 @@ async function capture(context, suffix) {
   await shot('catalog')
 
   // Каталог с применённым фильтром
-  await page.goto(`${BASE_URL}/tours?country=Турция&sort=price-asc`)
+  await page.goto(`${BASE_URL}/tours?countryId=2`)
   await page.getByText('Активных фильтров: 1').waitFor()
   await page.getByRole('article').first().waitFor()
   await shot('filters')
 
   // Страница тура. Ждём смены адреса, иначе снимок ловит скелетон загрузки.
   await page.getByRole('article').first().getByRole('heading').getByRole('link').click()
-  await page.waitForURL(/\/tours\/[\w-]+$/)
-  await page.getByRole('button', { name: /осталось \d+ мест/ }).first().waitFor()
+  await page.waitForURL(/\/tours\/\d+$/)
+  await page.getByRole('heading', { level: 1 }).waitFor()
   await shot('tour')
 
-  // Форма брони с групповой скидкой
-  await page.getByRole('button', { name: 'Забронировать', exact: true }).click()
-  await page.waitForURL(/\/book/)
+  // Форма брони
+  await page.getByRole('link', { name: 'Забронировать' }).click()
+  await page.waitForURL(/\/book$/)
   await page.getByRole('heading', { name: 'Бронирование' }).waitFor()
-  await page.getByLabel('Гостей').selectOption('3')
-  await page.getByText(/Скидка за группу/).waitFor()
+  await page.getByLabel('Имя и фамилия').fill('Айгерим Сериковна')
+  await page.getByLabel('Email').fill('aigerim@example.kz')
+  await page.getByLabel('Телефон').fill('+7 701 000 00 00')
+  await page.getByLabel('Сколько человек').selectOption('3')
   await shot('booking')
+
+  // Подтверждение брони
+  await page.getByRole('button', { name: 'Забронировать без оплаты' }).click()
+  await page.waitForURL(/\/bookings\/\d+$/)
+  await page.getByRole('heading', { name: 'Бронь принята' }).waitFor()
+  await shot('confirmation')
 
   await page.close()
 }

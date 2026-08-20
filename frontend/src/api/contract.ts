@@ -1,32 +1,24 @@
 import type { Booking, BookingDraft } from '@/types/booking'
-import type { Tour } from '@/types/tour'
+import type { Country, Tour } from '@/types/tour'
 
-export const SORT_OPTIONS = ['departure-asc', 'price-asc', 'price-desc', 'rating-desc'] as const
+/** Умолчание бэкенда для limit. */
+export const DEFAULT_PAGE_SIZE = 20
 
-export type SortOption = (typeof SORT_OPTIONS)[number]
+/** Бэкенд обрезает limit до этого значения. */
+export const MAX_PAGE_SIZE = 100
 
-export const SORT_LABELS: Record<SortOption, string> = {
-  'departure-asc': 'Сначала ближайшие вылеты',
-  'price-asc': 'Сначала дешёвые',
-  'price-desc': 'Сначала дорогие',
-  'rating-desc': 'По рейтингу',
-}
-
-export const DEFAULT_SORT: SortOption = 'departure-asc'
-export const DEFAULT_PAGE_SIZE = 9
-
+/**
+ * Фильтры каталога — ровно те, что понимает `GET /api/v1/tours`.
+ * Сортировки в API нет, поэтому её нет и здесь.
+ */
 export type TourQuery = {
-  country?: string | undefined
-  /** Целое число тенге. */
-  priceMin?: number | undefined
-  /** Целое число тенге. */
-  priceMax?: number | undefined
-  /** YYYY-MM-DD */
+  countryId?: number | undefined
+  minPrice?: number | undefined
+  maxPrice?: number | undefined
+  /** YYYY-MM-DD. Бэкенд отбирает туры, у которых end_date >= dateFrom. */
   dateFrom?: string | undefined
-  /** YYYY-MM-DD */
+  /** YYYY-MM-DD. Бэкенд отбирает туры, у которых start_date <= dateTo. */
   dateTo?: string | undefined
-  guests?: number | undefined
-  sort?: SortOption | undefined
   /** С единицы. */
   page?: number | undefined
   limit?: number | undefined
@@ -34,16 +26,15 @@ export type TourQuery = {
 
 export type Paginated<T> = {
   items: T[]
-  total: number
   page: number
   limit: number
+  total: number
 }
 
 /**
- * Единый тип ошибки для обоих адаптеров.
- *
- * Мок и HTTP обязаны падать одинаково — иначе экраны, отлаженные на моках,
- * поведут себя иначе с реальным backend'ом.
+ * Ошибка слоя данных. Тело ошибки у бэкенда — `{ "error": "..." }`,
+ * коды: 404 не найдено, 422 не прошло валидацию, 500 сбой сервера.
+ * status 0 означает, что до сервера вообще не достучались.
  */
 export class ApiError extends Error {
   readonly status: number
@@ -53,18 +44,26 @@ export class ApiError extends Error {
     this.name = 'ApiError'
     this.status = status
   }
+
+  /** Сообщение, которое не стыдно показать пользователю. */
+  get userMessage(): string {
+    if (this.status === 0) return 'Сервер недоступен. Проверьте, запущен ли бэкенд.'
+    if (this.status === 404) return 'Не найдено.'
+    if (this.status >= 500) return 'Сервер вернул ошибку. Попробуйте позже.'
+
+    return this.message
+  }
 }
 
 /**
  * Контракт слоя данных. Всё приложение знает только его.
- *
- * Реализации: src/api/adapters/mock.ts и src/api/adapters/http.ts.
- * Выбор реализации — src/api/index.ts по VITE_API_MODE.
+ * Реализация — src/api/adapters/http.ts, спецификация —
+ * docs/superpowers/specs/api.md.
  */
 export interface Api {
   listTours(query: TourQuery): Promise<Paginated<Tour>>
-  getTour(id: string): Promise<Tour>
-  listCountries(): Promise<string[]>
+  getTour(id: number): Promise<Tour>
+  listCountries(): Promise<Country[]>
   createBooking(draft: BookingDraft): Promise<Booking>
-  getBooking(id: string): Promise<Booking>
+  getBooking(id: number): Promise<Booking>
 }

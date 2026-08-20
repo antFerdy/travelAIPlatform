@@ -13,17 +13,17 @@ function FiltersProbe() {
   return (
     <div>
       <p>search: {location.search || '(пусто)'}</p>
-      <p>country: {filters.country ?? '—'}</p>
-      <p>priceMin: {filters.priceMin ?? '—'}</p>
+      <p>countryId: {filters.countryId ?? '—'}</p>
+      <p>minPrice: {filters.minPrice ?? '—'}</p>
       <p>active: {activeCount}</p>
 
-      <button type="button" onClick={() => setFilters({ country: 'Грузия' })}>
-        Выбрать Грузию
+      <button type="button" onClick={() => setFilters({ countryId: 2 })}>
+        Выбрать Турцию
       </button>
-      <button type="button" onClick={() => setFilters({ priceMin: 200000 })}>
+      <button type="button" onClick={() => setFilters({ minPrice: 700000 })}>
         Задать цену
       </button>
-      <button type="button" onClick={() => setFilters({ country: undefined })}>
+      <button type="button" onClick={() => setFilters({ countryId: undefined })}>
         Снять страну
       </button>
       <button type="button" onClick={resetFilters}>
@@ -34,81 +34,79 @@ function FiltersProbe() {
 }
 
 describe('parseFilters', () => {
-  it('читает все поддерживаемые параметры', () => {
+  it('читает все параметры, которые понимает бэкенд', () => {
     const params = new URLSearchParams(
-      'country=Грузия&priceMin=100000&priceMax=500000&dateFrom=2026-09-01&dateTo=2026-10-01&guests=3&sort=price-asc',
+      'countryId=2&minPrice=700000&maxPrice=900000&dateFrom=2026-09-01&dateTo=2026-10-01',
     )
 
     expect(parseFilters(params)).toEqual({
-      country: 'Грузия',
-      priceMin: 100000,
-      priceMax: 500000,
+      countryId: 2,
+      minPrice: 700000,
+      maxPrice: 900000,
       dateFrom: '2026-09-01',
       dateTo: '2026-10-01',
-      guests: 3,
-      sort: 'price-asc',
     })
   })
 
   it('игнорирует битый параметр, не теряя остальные', () => {
-    const filters = parseFilters(new URLSearchParams('country=Грузия&guests=сто&sort=неизвестно'))
+    const filters = parseFilters(new URLSearchParams('countryId=2&minPrice=сто'))
 
-    expect(filters.country).toBe('Грузия')
-    expect(filters.guests).toBeUndefined()
-    expect(filters.sort).toBeUndefined()
+    expect(filters.countryId).toBe(2)
+    expect(filters.minPrice).toBeUndefined()
   })
 
   it('пропускает даты в неверном формате', () => {
     expect(parseFilters(new URLSearchParams('dateFrom=01.09.2026')).dateFrom).toBeUndefined()
   })
 
-  it('не считает сортировку активным фильтром', () => {
-    expect(parseFilters(new URLSearchParams('sort=price-asc'))).toEqual({ sort: 'price-asc' })
+  it('не принимает нулевой и отрицательный id страны', () => {
+    expect(parseFilters(new URLSearchParams('countryId=0')).countryId).toBeUndefined()
+    expect(parseFilters(new URLSearchParams('countryId=-3')).countryId).toBeUndefined()
   })
 })
 
 describe('useTourFilters', () => {
   it('поднимает фильтры из строки запроса при первом рендере', () => {
-    renderWithProviders(<FiltersProbe />, { route: '/tours?country=Турция&priceMin=300000' })
+    renderWithProviders(<FiltersProbe />, { route: '/tours?countryId=2&minPrice=700000' })
 
-    expect(screen.getByText('country: Турция')).toBeInTheDocument()
-    expect(screen.getByText('priceMin: 300000')).toBeInTheDocument()
+    expect(screen.getByText('countryId: 2')).toBeInTheDocument()
+    expect(screen.getByText('minPrice: 700000')).toBeInTheDocument()
     expect(screen.getByText('active: 2')).toBeInTheDocument()
   })
 
   it('записывает выбранный фильтр в строку запроса', async () => {
     const { user } = renderWithProviders(<FiltersProbe />, { route: '/tours' })
 
-    await user.click(screen.getByRole('button', { name: 'Выбрать Грузию' }))
+    await user.click(screen.getByRole('button', { name: 'Выбрать Турцию' }))
 
-    expect(screen.getByText(/search: \?country=/)).toBeInTheDocument()
-    expect(screen.getByText('country: Грузия')).toBeInTheDocument()
+    expect(screen.getByText('search: ?countryId=2')).toBeInTheDocument()
+    expect(screen.getByText('countryId: 2')).toBeInTheDocument()
   })
 
   it('сохраняет остальные фильтры при изменении одного', async () => {
-    const { user } = renderWithProviders(<FiltersProbe />, { route: '/tours?country=Турция' })
+    const { user } = renderWithProviders(<FiltersProbe />, { route: '/tours?countryId=2' })
 
     await user.click(screen.getByRole('button', { name: 'Задать цену' }))
 
-    expect(screen.getByText('country: Турция')).toBeInTheDocument()
-    expect(screen.getByText('priceMin: 200000')).toBeInTheDocument()
+    expect(screen.getByText('countryId: 2')).toBeInTheDocument()
+    expect(screen.getByText('minPrice: 700000')).toBeInTheDocument()
   })
 
   it('удаляет параметр из URL, когда фильтр снимают', async () => {
     const { user } = renderWithProviders(<FiltersProbe />, {
-      route: '/tours?country=Турция&priceMin=200000',
+      route: '/tours?countryId=2&minPrice=700000',
     })
 
     await user.click(screen.getByRole('button', { name: 'Снять страну' }))
 
-    expect(screen.getByText('country: —')).toBeInTheDocument()
-    expect(screen.getByText('priceMin: 200000')).toBeInTheDocument()
+    expect(screen.getByText('countryId: —')).toBeInTheDocument()
+    expect(screen.getByText('minPrice: 700000')).toBeInTheDocument()
     expect(screen.getByText('active: 1')).toBeInTheDocument()
   })
 
   it('сбрасывает все фильтры разом', async () => {
     const { user } = renderWithProviders(<FiltersProbe />, {
-      route: '/tours?country=Турция&priceMin=200000&sort=price-asc',
+      route: '/tours?countryId=2&minPrice=700000',
     })
 
     await user.click(screen.getByRole('button', { name: 'Сбросить' }))

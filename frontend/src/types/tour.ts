@@ -1,42 +1,47 @@
-export const MEAL_PLANS = ['RO', 'BB', 'HB', 'FB', 'AI'] as const
-
-export type MealPlan = (typeof MEAL_PLANS)[number]
-
-export const MEAL_PLAN_LABELS: Record<MealPlan, string> = {
-  RO: 'Без питания',
-  BB: 'Завтраки',
-  HB: 'Завтрак и ужин',
-  FB: 'Полный пансион',
-  AI: 'Всё включено',
-}
-
-/** Конкретный вылет по туру. Даты — календарные, в формате YYYY-MM-DD. */
-export type Departure = {
-  id: string
+/**
+ * Форма тура повторяет ответ бэкенда из docs/superpowers/specs/api.md,
+ * но в camelCase: snake_case остаётся за границей слоя данных и в компоненты
+ * не протекает. Преобразование делают zod-схемы в src/api/schemas.ts.
+ */
+export type Tour = {
+  id: number
+  title: string
+  description: string
+  /** FK на Country.id — название страны приходит отдельным запросом. */
+  countryId: number
+  /** Число с двумя знаками. Бэкенд не уточняет, за человека это или за тур. */
+  price: number
+  /** Код валюты, например KZT. */
+  currency: string
   /** YYYY-MM-DD */
   startDate: string
   /** YYYY-MM-DD */
   endDate: string
-  seatsLeft: number
+  durationDays: number
+  /** Открытое множество: бэкенд перечисляет beach и city как примеры. */
+  category?: string
+  imageUrl?: string
+  /** RFC 3339 */
+  createdAt: string
 }
 
-export type Tour = {
-  id: string
-  title: string
-  country: string
-  city: string
-  description: string
-  images: string[]
-  /** Целое число тенге за одного гостя за весь тур. */
-  pricePerPerson: number
-  currency: 'KZT'
-  nights: number
-  /** 0–5 */
-  rating: number
-  reviewsCount: number
-  /** 1–5 */
-  hotelStars: number
-  mealPlan: MealPlan
-  includes: string[]
-  departures: Departure[]
+export type Country = {
+  id: number
+  name: string
+  code: string
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  beach: 'Пляжный',
+  city: 'Городской',
+  ski: 'Горнолыжный',
+  excursion: 'Экскурсионный',
+}
+
+/**
+ * Подпись категории. Список категорий у бэкенда открытый, поэтому незнакомое
+ * значение показываем как есть, а не прячем.
+ */
+export function categoryLabel(category: string): string {
+  return CATEGORY_LABELS[category] ?? category
 }

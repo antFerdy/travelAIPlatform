@@ -1,81 +1,82 @@
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import { makeDeparture, makeTour } from '@/test/factories'
+import { makeTour } from '@/test/fixtures'
 import { renderWithProviders } from '@/test/renderWithProviders'
 
 import { TourCard } from './TourCard'
 
 describe('TourCard', () => {
-  it('показывает направление, название и цену за гостя', () => {
+  it('показывает страну, название, даты и цену', () => {
     const tour = makeTour({
-      title: 'Анталия: пляжный отдых',
-      country: 'Турция',
-      city: 'Анталия',
-      pricePerPerson: 420_000,
+      title: 'Стамбул: Kaya Madrid Hotel, 9 ночей',
+      price: 735_000,
+      currency: 'KZT',
+      startDate: '2026-09-05',
+      endDate: '2026-09-14',
+      durationDays: 9,
     })
 
-    renderWithProviders(<TourCard tour={tour} />)
+    renderWithProviders(<TourCard tour={tour} countryName="Турция" />)
 
-    expect(screen.getByRole('heading', { name: 'Анталия: пляжный отдых' })).toBeInTheDocument()
-    expect(screen.getByText('Турция, Анталия')).toBeInTheDocument()
-    expect(screen.getByText(/420\D?000\s?₸/)).toBeInTheDocument()
-    expect(screen.getByText('за одного гостя')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Стамбул: Kaya Madrid Hotel, 9 ночей' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Турция')).toBeInTheDocument()
+    expect(screen.getByText('9 ночей')).toBeInTheDocument()
+    expect(screen.getByText(/735\D?000\s?₸/)).toBeInTheDocument()
+    expect(screen.getByText(/14 сентября 2026/)).toBeInTheDocument()
   })
 
-  it('ведёт на страницу тура', () => {
-    const tour = makeTour({ id: 'tr-antalya-01', title: 'Анталия' })
+  it('ведёт на страницу тура по числовому id', () => {
+    renderWithProviders(<TourCard tour={makeTour({ id: 42, title: 'Тур' })} />)
+
+    // В карточке две ссылки на тур — картинка и заголовок; проверяем заголовок
+    const heading = screen.getByRole('heading', { name: 'Тур' })
+
+    expect(within(heading).getByRole('link')).toHaveAttribute('href', '/tours/42')
+  })
+
+  it('переводит категорию на русский', () => {
+    renderWithProviders(<TourCard tour={makeTour({ category: 'beach' })} />)
+
+    expect(screen.getByText('Пляжный')).toBeInTheDocument()
+  })
+
+  it('показывает незнакомую категорию как есть, а не прячет её', () => {
+    renderWithProviders(<TourCard tour={makeTour({ category: 'safari' })} />)
+
+    expect(screen.getByText('safari')).toBeInTheDocument()
+  })
+
+  it('обходится без категории, если бэкенд её не прислал', () => {
+    const { category: _omitted, ...withoutCategory } = makeTour()
+
+    renderWithProviders(<TourCard tour={withoutCategory} />)
+
+    expect(screen.getByRole('heading')).toBeInTheDocument()
+  })
+
+  it('ставит прочерк, пока справочник стран не загрузился', () => {
+    renderWithProviders(<TourCard tour={makeTour()} />)
+
+    expect(screen.getByText('—')).toBeInTheDocument()
+  })
+
+  it('подставляет заглушку, если картинки нет', () => {
+    const { imageUrl: _omitted, ...withoutImage } = makeTour({ title: 'Без фото' })
+
+    renderWithProviders(<TourCard tour={withoutImage} />)
+
+    expect(screen.getByRole('img')).toHaveAttribute('src', '/tour-placeholder.svg')
+  })
+
+  it('подставляет заглушку, если картинка не загрузилась', () => {
+    const tour = makeTour({ imageUrl: 'https://example.invalid/broken.jpg', title: 'Тур' })
 
     renderWithProviders(<TourCard tour={tour} />)
 
-    expect(screen.getByRole('link', { name: 'Анталия' })).toHaveAttribute(
-      'href',
-      '/tours/tr-antalya-01',
-    )
-  })
-
-  it('называет категорию отеля словами, а не пятью одинаковыми звёздами', () => {
-    renderWithProviders(<TourCard tour={makeTour({ hotelStars: 3 })} />)
-
-    expect(screen.getByRole('img', { name: 'Отель 3 звезды' })).toBeInTheDocument()
-  })
-
-  it('предупреждает, когда мест на ближайшем вылете осталось мало', () => {
-    const tour = makeTour({
-      departures: [makeDeparture({ startDate: '2027-01-15', seatsLeft: 2 })],
-    })
-
-    renderWithProviders(<TourCard tour={tour} />)
-
-    expect(screen.getByText(/осталось 2 места/)).toBeInTheDocument()
-  })
-
-  it('не предупреждает о местах, когда их много', () => {
-    const tour = makeTour({
-      departures: [makeDeparture({ startDate: '2027-01-15', seatsLeft: 25 })],
-    })
-
-    renderWithProviders(<TourCard tour={tour} />)
-
-    expect(screen.queryByText(/осталось/)).not.toBeInTheDocument()
-  })
-
-  it('честно сообщает, что ближайших вылетов нет', () => {
-    const tour = makeTour({
-      departures: [makeDeparture({ startDate: '2020-01-01' })],
-    })
-
-    renderWithProviders(<TourCard tour={tour} />)
-
-    expect(screen.getByText('нет ближайших вылетов')).toBeInTheDocument()
-  })
-
-  it('подставляет локальную заглушку, если картинка не загрузилась', () => {
-    const tour = makeTour({ images: ['https://example.invalid/broken.jpg'], city: 'Батуми' })
-
-    renderWithProviders(<TourCard tour={tour} />)
-
-    const image = screen.getByRole('img', { name: /Батуми/ })
+    const image = screen.getByRole('img')
     fireEvent.error(image)
 
     expect(image).toHaveAttribute('src', '/tour-placeholder.svg')

@@ -3,16 +3,26 @@ import { ru } from 'date-fns/locale'
 
 const numberFormat = new Intl.NumberFormat('ru-KZ', { maximumFractionDigits: 0 })
 
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  KZT: '₸',
+  USD: '$',
+  EUR: '€',
+  RUB: '₽',
+}
+
 /**
- * Форматирует сумму в тенге: `420 000 ₸`.
+ * Форматирует сумму: `845 000 ₸`.
  *
- * Символ подставляется вручную, а не через `style: 'currency'`, потому что
- * позиция и отступ у KZT разнятся между версиями ICU — а вывод должен быть
- * одинаковым и в браузере, и в jsdom-тестах.
- * Разделитель разрядов — неразрывный пробел, как того требует русская типографика.
+ * Валюта приходит с каждым туром, поэтому символ подбирается по коду,
+ * а незнакомый код показывается как есть — лучше «845 000 GBP», чем
+ * молча выдать чужую валюту за тенге.
+ *
+ * Символ подставляется вручную, а не через `style: 'currency'`: позиция
+ * и отступ у KZT разнятся между версиями ICU, а вывод должен совпадать
+ * в браузере и в jsdom-тестах.
  */
-export function formatPrice(amount: number): string {
-  return `${numberFormat.format(amount)} ₸`
+export function formatPrice(amount: number, currency = 'KZT'): string {
+  return `${numberFormat.format(amount)} ${CURRENCY_SYMBOLS[currency] ?? currency}`
 }
 
 /** `2026-09-12` → `12 сентября 2026` */
@@ -46,17 +56,21 @@ export function plural(count: number, forms: [string, string, string]): string {
   return forms[2]
 }
 
-/** `7` → `7 ночей` */
+/** `9` → `9 ночей`. Бэкенд называет это duration_days, но считает ночи. */
 export function formatNights(nights: number): string {
   return `${nights} ${plural(nights, ['ночь', 'ночи', 'ночей'])}`
 }
 
-/** `2` → `2 гостя` */
-export function formatGuests(guests: number): string {
-  return `${guests} ${plural(guests, ['гость', 'гостя', 'гостей'])}`
+/** `2` → `2 человека` */
+export function formatPeople(people: number): string {
+  return `${people} ${plural(people, ['человек', 'человека', 'человек'])}`
 }
 
-/** `8` → `осталось 8 мест` */
-export function formatSeatsLeft(seats: number): string {
-  return `осталось ${seats} ${plural(seats, ['место', 'места', 'мест'])}`
+/** Сегодняшняя дата в формате YYYY-MM-DD по локальному календарю. */
+export function todayIso(): string {
+  const now = new Date()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+
+  return `${now.getFullYear()}-${month}-${day}`
 }

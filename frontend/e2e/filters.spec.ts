@@ -5,50 +5,43 @@ import { expect, test } from '@playwright/test'
  * перезагрузка и кнопка «назад» — то, что юнит-тест не воспроизводит.
  */
 test('открывает отфильтрованную выдачу по прямой ссылке', async ({ page }) => {
-  await page.goto('/tours?country=%D0%93%D1%80%D1%83%D0%B7%D0%B8%D1%8F&sort=price-asc')
+  await page.goto('/tours?countryId=1')
 
-  await expect(page.getByLabel('Страна')).toHaveValue('Грузия')
-  await expect(page.getByLabel('Сортировка')).toHaveValue('price-asc')
+  await expect(page.getByLabel('Страна')).toHaveValue('1')
   await expect(page.getByText('Активных фильтров: 1')).toBeVisible()
 
   const cards = page.getByRole('article')
   await expect(cards.first()).toBeVisible()
 
   for (let index = 0; index < (await cards.count()); index += 1) {
-    await expect(cards.nth(index).getByText(/^Грузия,/)).toBeVisible()
+    await expect(cards.nth(index).getByText('ОАЭ', { exact: true })).toBeVisible()
   }
 })
 
 test('переживает перезагрузку страницы', async ({ page }) => {
   await page.goto('/tours')
 
-  await page.getByLabel('Страна').selectOption('Египет')
+  await page.getByLabel('Страна').selectOption({ label: 'Турция' })
   await expect(page.getByText('Активных фильтров: 1')).toBeVisible()
 
   await page.reload()
 
-  await expect(page.getByLabel('Страна')).toHaveValue('Египет')
-  await expect(page.getByRole('article').first().getByText(/^Египет,/)).toBeVisible()
+  await expect(page.getByLabel('Страна')).toHaveValue('2')
+  await expect(page.getByRole('article').first().getByText('Турция', { exact: true })).toBeVisible()
 })
 
-test('сортировка по цене действительно упорядочивает выдачу', async ({ page }) => {
-  await page.goto('/tours?sort=price-asc')
+test('применяет цену по Enter и отражает её в адресе', async ({ page }) => {
+  await page.goto('/tours')
 
-  await expect(page.getByRole('article').first()).toBeVisible()
+  await page.getByLabel('Цена от, ₸').fill('800000')
+  await page.getByLabel('Цена от, ₸').press('Enter')
 
-  const raw = await page.getByText(/за одного гостя/).all()
-  expect(raw.length).toBeGreaterThan(1)
-
-  const prices = await page
-    .locator('article p:has-text("₸")')
-    .allInnerTexts()
-    .then((texts) => texts.map((text) => Number(text.replace(/\D/g, ''))))
-
-  expect(prices).toEqual([...prices].sort((a, b) => a - b))
+  await expect(page).toHaveURL(/minPrice=800000/)
+  await expect(page.getByText('Активных фильтров: 1')).toBeVisible()
 })
 
 test('сбрасывает все фильтры одной кнопкой', async ({ page }) => {
-  await page.goto('/tours?country=%D0%A2%D1%83%D1%80%D1%86%D0%B8%D1%8F&guests=4')
+  await page.goto('/tours?countryId=2&minPrice=700000')
 
   await expect(page.getByText('Активных фильтров: 2')).toBeVisible()
 
@@ -57,10 +50,11 @@ test('сбрасывает все фильтры одной кнопкой', asy
   await expect(page).toHaveURL(/\/tours$/)
   await expect(page.getByText(/Активных фильтров/)).toBeHidden()
   await expect(page.getByLabel('Страна')).toHaveValue('')
+  await expect(page.getByLabel('Цена от, ₸')).toHaveValue('')
 })
 
 test('честно сообщает, когда под условия ничего не подошло', async ({ page }) => {
-  await page.goto('/tours?priceMin=99000000')
+  await page.goto('/tours?minPrice=99000000')
 
   await expect(page.getByText('Под эти условия туров нет')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Сбросить фильтры' })).toBeVisible()

@@ -4,11 +4,11 @@ import {
   formatDate,
   formatDateRange,
   formatDateShort,
-  formatGuests,
   formatNights,
+  formatPeople,
   formatPrice,
-  formatSeatsLeft,
   plural,
+  todayIso,
 } from './format'
 
 /**
@@ -29,6 +29,14 @@ describe('formatPrice', () => {
 
   it('обрабатывает ноль', () => {
     expect(normalize(formatPrice(0))).toBe('0 ₸')
+  })
+
+  it('подставляет символ по коду валюты из тура', () => {
+    expect(normalize(formatPrice(1000, 'USD'))).toBe('1 000 $')
+  })
+
+  it('показывает незнакомый код как есть, а не выдаёт его за тенге', () => {
+    expect(normalize(formatPrice(1000, 'GBP'))).toBe('1 000 GBP')
   })
 })
 
@@ -89,14 +97,15 @@ describe('склонения в интерфейсе', () => {
     expect(formatNights(3)).toBe('3 ночи')
   })
 
-  it('склоняет гостей', () => {
-    expect(formatGuests(1)).toBe('1 гость')
-    expect(formatGuests(2)).toBe('2 гостя')
-    expect(formatGuests(5)).toBe('5 гостей')
+  it('склоняет людей', () => {
+    expect(formatPeople(1)).toBe('1 человек')
+    expect(formatPeople(2)).toBe('2 человека')
+    expect(formatPeople(5)).toBe('5 человек')
   })
+})
 
-  it('склоняет оставшиеся места', () => {
-    expect(formatSeatsLeft(1)).toBe('осталось 1 место')
-    expect(formatSeatsLeft(8)).toBe('осталось 8 мест')
+describe('todayIso', () => {
+  it('возвращает дату в формате YYYY-MM-DD', () => {
+    expect(todayIso()).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 })

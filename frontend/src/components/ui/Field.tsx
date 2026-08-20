@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
+import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react'
 import { useId } from 'react'
 
 import { cn } from '@/lib/cn'
@@ -79,23 +79,3 @@ export function SelectField({ label, hint, error, className, children, ...rest }
   )
 }
 
-export type TextareaFieldProps = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'id'> & {
-  label: string
-  hint?: string
-  error?: string
-}
-
-export function TextareaField({ label, hint, error, className, ...rest }: TextareaFieldProps) {
-  const id = useId()
-
-  return (
-    <FieldShell id={id} label={label} hint={hint} error={error}>
-      <textarea
-        id={id}
-        aria-invalid={error ? true : undefined}
-        className={cn(CONTROL_CLASS, 'resize-y', className)}
-        {...rest}
-      />
-    </FieldShell>
-  )
-}

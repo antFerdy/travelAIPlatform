@@ -1,78 +1,64 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect } from 'react'
-import { useForm, useWatch } from 'react-hook-form'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
+import { useForm } from 'react-hook-form'
+import { Link, useNavigate, useParams } from 'react-router'
 import { z } from 'zod'
 
-import { PriceBreakdown } from '@/components/booking/PriceBreakdown'
 import { PageContainer } from '@/components/layout/Layout'
 import { TourImage } from '@/components/tours/TourImage'
 import { Button } from '@/components/ui/Button'
-import { InputField, SelectField, TextareaField } from '@/components/ui/Field'
+import { InputField, SelectField } from '@/components/ui/Field'
 import { ErrorState, Skeleton } from '@/components/ui/States'
-import { upcomingDepartures } from '@/domain/availability'
-import { useCreateBooking, useTour } from '@/hooks/useTours'
+import { ApiError } from '@/api'
+import { parseNumericParam, useCountryLookup, useCreateBooking, useTour } from '@/hooks/useTours'
 import { formatDateRange, formatNights, formatPrice } from '@/lib/format'
-import { MAX_GUESTS, MIN_GUESTS } from '@/types/booking'
+import { MAX_PEOPLE, MIN_PEOPLE } from '@/types/booking'
 
+/**
+ * Валидация повторяет требования `POST /api/v1/bookings`: имя и телефон
+ * непустые, email — настоящий адрес, число человек больше нуля. Сервер
+ * проверяет то же самое и отвечает 422; здесь мы просто не тратим на это запрос.
+ */
 const bookingFormSchema = z.object({
-  name: z.string().trim().min(2, 'Укажите имя и фамилию'),
-  email: z.string().trim().email('Проверьте адрес — на него придёт подтверждение'),
-  phone: z
-    .string()
-    .trim()
-    .regex(/^\+?[\d\s()-]{10,20}$/, 'Телефон в формате +7 701 000 00 00'),
-  departureId: z.string().min(1, 'Выберите дату вылета'),
+  customerName: z.string().trim().min(2, 'Укажите имя и фамилию'),
+  customerEmail: z.string().trim().email('Проверьте адрес — на него придёт подтверждение'),
+  customerPhone: z.string().trim().min(5, 'Укажите номер, по которому с вами свяжутся'),
   // Приведение делает react-hook-form через valueAsNumber, поэтому здесь
   // ожидается уже число: z.coerce размыл бы входной тип формы до unknown.
-  guests: z.number().int().min(MIN_GUESTS).max(MAX_GUESTS),
-  comment: z.string().trim().max(500, 'Не более 500 символов').optional(),
+  numPeople: z.number().int().min(MIN_PEOPLE).max(MAX_PEOPLE),
 })
 
 type BookingFormValues = z.infer<typeof bookingFormSchema>
 
 export function BookingPage() {
   const { tourId } = useParams<{ tourId: string }>()
-  const [searchParams] = useSearchParams()
+  const id = parseNumericParam(tourId)
   const navigate = useNavigate()
 
-  const { data: tour, isPending, isError, error, refetch } = useTour(tourId)
+  const { data: tour, isPending, isError, error, refetch } = useTour(id)
+  const countryById = useCountryLookup()
   const createBooking = useCreateBooking()
 
   const {
     register,
     handleSubmit,
-    control,
-    setValue,
     formState: { errors, isSubmitting },
   } = useForm<BookingFormValues>({
     resolver: zodResolver(bookingFormSchema),
     defaultValues: {
-      name: '',
-      email: '',
-      phone: '',
-      departureId: searchParams.get('departureId') ?? '',
-      guests: 2,
-      comment: '',
+      customerName: '',
+      customerEmail: '',
+      customerPhone: '',
+      numPeople: 2,
     },
   })
 
-  // useWatch вместо watch(): подписка мемоизируется и не ломает React Compiler.
-  const guests = useWatch({ control, name: 'guests' }) || MIN_GUESTS
-  const departureId = useWatch({ control, name: 'departureId' })
-
-  // departureId приходит из строки запроса, а её пишет кто угодно. Если такого
-  // вылета у тура нет или он уже состоялся, значение снимаем: иначе форма
-  // отправит вылет, которого нет в списке, и бронь уйдёт на прошедшую дату.
-  useEffect(() => {
-    if (!tour || !departureId) return
-
-    const available = upcomingDepartures(tour).some(
-      (departure) => departure.id === departureId,
+  if (id === undefined) {
+    return (
+      <PageContainer className="py-8">
+        <ErrorState title="Тур не найден" error={new ApiError(404, 'Некорректный адрес тура')} />
+      </PageContainer>
     )
-
-    if (!available) setValue('departureId', '')
-  }, [tour, departureId, setValue])
+  }
 
   if (isPending) {
     return (
@@ -91,18 +77,16 @@ export function BookingPage() {
     )
   }
 
-  const departures = upcomingDepartures(tour)
-  const selected = departures.find((departure) => departure.id === departureId)
-  const notEnoughSeats = selected !== undefined && selected.seatsLeft < guests
+  const countryName = countryById.get(tour.countryId)?.name
 
   const onSubmit = handleSubmit(async (values) => {
     try {
       const booking = await createBooking.mutateAsync({
         tourId: tour.id,
-        departureId: values.departureId,
-        guests: values.guests,
-        customer: { name: values.name, email: values.email, phone: values.phone },
-        ...(values.comment ? { comment: values.comment } : {}),
+        customerName: values.customerName,
+        customerEmail: values.customerEmail,
+        customerPhone: values.customerPhone,
+        numPeople: values.numPeople,
       })
 
       void navigate(`/bookings/${booking.id}`)
@@ -136,8 +120,8 @@ export function BookingPage() {
               label="Имя и фамилия"
               autoComplete="name"
               placeholder="Айгерим Сериковна"
-              error={errors.name?.message}
-              {...register('name')}
+              error={errors.customerName?.message}
+              {...register('customerName')}
             />
 
             <InputField
@@ -145,8 +129,8 @@ export function BookingPage() {
               type="email"
               autoComplete="email"
               placeholder="you@example.kz"
-              error={errors.email?.message}
-              {...register('email')}
+              error={errors.customerEmail?.message}
+              {...register('customerEmail')}
             />
 
             <InputField
@@ -154,8 +138,8 @@ export function BookingPage() {
               type="tel"
               autoComplete="tel"
               placeholder="+7 701 000 00 00"
-              error={errors.phone?.message}
-              {...register('phone')}
+              error={errors.customerPhone?.message}
+              {...register('customerPhone')}
             />
           </fieldset>
 
@@ -163,30 +147,13 @@ export function BookingPage() {
             <legend className="text-ink-900 px-1 text-lg font-semibold">Поездка</legend>
 
             <SelectField
-              label="Дата вылета"
-              error={errors.departureId?.message}
-              {...register('departureId')}
-            >
-              <option value="">Выберите вылет</option>
-              {departures.map((departure) => (
-                <option key={departure.id} value={departure.id} disabled={departure.seatsLeft === 0}>
-                  {formatDateRange(departure.startDate, departure.endDate)}
-                  {departure.seatsLeft === 0 ? ' — мест нет' : ''}
-                </option>
-              ))}
-            </SelectField>
-
-            <SelectField
-              label="Гостей"
-              error={errors.guests?.message}
-              {...(notEnoughSeats
-                ? { hint: `На этот вылет осталось мест: ${selected.seatsLeft}` }
-                : {})}
-              {...register('guests', { valueAsNumber: true })}
+              label="Сколько человек"
+              error={errors.numPeople?.message}
+              {...register('numPeople', { valueAsNumber: true })}
             >
               {Array.from(
-                { length: MAX_GUESTS - MIN_GUESTS + 1 },
-                (_, index) => index + MIN_GUESTS,
+                { length: MAX_PEOPLE - MIN_PEOPLE + 1 },
+                (_, index) => index + MIN_PEOPLE,
               ).map((count) => (
                 <option key={count} value={count}>
                   {count}
@@ -194,21 +161,10 @@ export function BookingPage() {
               ))}
             </SelectField>
 
-            <TextareaField
-              label="Комментарий"
-              rows={3}
-              placeholder="Пожелания по номеру, трансферу, питанию"
-              error={errors.comment?.message}
-              {...register('comment')}
-            />
-          </fieldset>
-
-          {notEnoughSeats ? (
-            <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-              На выбранный вылет осталось мест: {selected.seatsLeft}. Уменьшите число гостей или
-              выберите другую дату.
+            <p className="text-ink-500 text-sm">
+              Даты поездки заданы туром: {formatDateRange(tour.startDate, tour.endDate)}.
             </p>
-          ) : null}
+          </fieldset>
 
           {createBooking.isError ? (
             <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -218,7 +174,7 @@ export function BookingPage() {
             </p>
           ) : null}
 
-          <Button type="submit" size="lg" disabled={isSubmitting || notEnoughSeats}>
+          <Button type="submit" size="lg" disabled={isSubmitting}>
             {isSubmitting ? 'Отправляем…' : 'Забронировать без оплаты'}
           </Button>
         </form>
@@ -226,25 +182,24 @@ export function BookingPage() {
         <aside className="flex flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
           <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
             <div className="relative aspect-[16/9]">
-              <TourImage src={tour.images[0] ?? ''} alt={`${tour.city}, ${tour.country}`} />
+              <TourImage src={tour.imageUrl} alt={tour.title} />
             </div>
             <div className="flex flex-col gap-1 p-4">
-              <p className="text-ink-500 text-sm">
-                {tour.country}, {tour.city}
-              </p>
+              {countryName ? <p className="text-ink-500 text-sm">{countryName}</p> : null}
               <p className="text-ink-900 font-semibold">{tour.title}</p>
-              <p className="text-ink-500 text-sm">
-                {formatNights(tour.nights)} · {formatPrice(tour.pricePerPerson)} за гостя
+              <p className="text-ink-500 text-sm">{formatNights(tour.durationDays)}</p>
+              <p className="text-ink-600 mt-1 text-sm">
+                {formatDateRange(tour.startDate, tour.endDate)}
               </p>
-              {selected ? (
-                <p className="text-ink-600 mt-1 text-sm">
-                  {formatDateRange(selected.startDate, selected.endDate)}
-                </p>
-              ) : null}
+              <p className="text-ink-900 mt-2 text-xl font-semibold">
+                {formatPrice(tour.price, tour.currency)}
+              </p>
+              <p className="text-ink-400 text-xs">
+                Стоимость тура по данным каталога. Итог по числу человек подтвердит менеджер —
+                сервер бронирования сумму не рассчитывает.
+              </p>
             </div>
           </div>
-
-          <PriceBreakdown pricePerPerson={tour.pricePerPerson} guests={guests} />
         </aside>
       </div>
     </PageContainer>
