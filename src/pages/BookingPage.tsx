@@ -81,15 +81,21 @@ export function BookingPage() {
   const notEnoughSeats = selected !== undefined && selected.seatsLeft < guests
 
   const onSubmit = handleSubmit(async (values) => {
-    const booking = await createBooking.mutateAsync({
-      tourId: tour.id,
-      departureId: values.departureId,
-      guests: values.guests,
-      customer: { name: values.name, email: values.email, phone: values.phone },
-      ...(values.comment ? { comment: values.comment } : {}),
-    })
+    try {
+      const booking = await createBooking.mutateAsync({
+        tourId: tour.id,
+        departureId: values.departureId,
+        guests: values.guests,
+        customer: { name: values.name, email: values.email, phone: values.phone },
+        ...(values.comment ? { comment: values.comment } : {}),
+      })
 
-    void navigate(`/bookings/${booking.id}`)
+      void navigate(`/bookings/${booking.id}`)
+    } catch {
+      // Отказ уже отражён через createBooking.isError, а введённые данные
+      // остаются в форме. Пробрасывать дальше нечего — иначе это необработанный
+      // промис, который валит тесты и засоряет консоль пользователю.
+    }
   })
 
   return (

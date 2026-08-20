@@ -23,7 +23,11 @@ export function PriceBreakdown({ pricePerPerson, guests }: PriceBreakdownProps) 
 
       <div className="border-ink-200 mt-1 flex items-baseline justify-between border-t pt-3">
         <span className="text-ink-700 font-medium">Итого</span>
-        <span className="text-ink-900 text-xl font-semibold">{formatPrice(total)}</span>
+        {/* <output> — семантика вычисленного результата: роль status, значение
+            озвучивается при пересчёте и однозначно находится в тестах. */}
+        <output aria-label="Итого к оплате" className="text-ink-900 text-xl font-semibold">
+          {formatPrice(total)}
+        </output>
       </div>
 
       <p className="text-ink-400 text-xs">
