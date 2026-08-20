@@ -92,3 +92,13 @@ export const bookingSchema = z
 
 /** Тело ошибки бэкенда. */
 export const apiErrorSchema = z.object({ error: z.string() })
+
+/** Ответ AI-сервиса: ai-service/app/schemas.py → ChatResponse. */
+export const chatReplySchema = z
+  .object({ session_id: z.string(), message: z.string() })
+  .transform((raw): string => raw.message)
+
+/** Тело ошибки FastAPI: строка либо список проблем валидации. */
+export const chatErrorSchema = z.object({
+  detail: z.union([z.string(), z.array(z.object({ msg: z.string() }))]),
+})

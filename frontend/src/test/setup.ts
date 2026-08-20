@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest'
 
-import { API_ORIGIN, mswServer, resetBackendState } from './mswServer'
+import { AI_ORIGIN, API_ORIGIN, mswServer, resetBackendState } from './mswServer'
 
 /**
  * Все тесты идут против заглушки бэкенда: мок-адаптера у приложения нет,
@@ -12,6 +12,7 @@ import { API_ORIGIN, mswServer, resetBackendState } from './mswServer'
  */
 beforeAll(() => {
   vi.stubEnv('VITE_API_BASE_URL', API_ORIGIN)
+  vi.stubEnv('VITE_AI_API_BASE_URL', AI_ORIGIN)
   mswServer.listen({ onUnhandledRequest: 'error' })
 })
 

@@ -67,3 +67,27 @@ export interface Api {
   createBooking(draft: BookingDraft): Promise<Booking>
   getBooking(id: number): Promise<Booking>
 }
+
+/** Максимальная длина сообщения, которую принимает ai-service. */
+export const MAX_CHAT_MESSAGE_LENGTH = 2000
+
+/** Формат session_id из ai-service/app/schemas.py. */
+export const CHAT_SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{1,100}$/
+
+/**
+ * Запрос к AI-помощнику. session_id стабилен между сообщениями:
+ * историю диалога хранит сам сервис, клиент её не пересылает.
+ */
+export type ChatRequest = {
+  sessionId: string
+  message: string
+}
+
+/**
+ * Контракт AI-сервиса — отдельный от каталога: другой адрес, другой формат
+ * ошибок (FastAPI отвечает полем detail) и своя доступность. Каталог обязан
+ * работать, даже когда помощник лежит.
+ */
+export interface ChatApi {
+  sendMessage(input: ChatRequest): Promise<string>
+}

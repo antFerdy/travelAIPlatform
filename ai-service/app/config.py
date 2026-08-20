@@ -12,3 +12,9 @@ class Settings(BaseSettings):
     backend_url: str = "http://localhost:8080"
     memory_db_path: Path = Path("runtime/memory.db")
     request_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
+
+    # Браузер ходит в /chat напрямую, поэтому origin фронтенда должен быть
+    # разрешён явно. Список задаётся JSON-массивом в ALLOWED_ORIGINS,
+    # локальная разработка покрыта регуляркой: порт vite-сервера плавает.
+    allowed_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
+    allowed_origin_regex: str = r"^http://(localhost|127\.0\.0\.1)(:\d+)?$"

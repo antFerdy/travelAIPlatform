@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 
 import { ApiError } from '@/api'
+import { ChatWidget } from '@/components/chat/ChatWidget'
 import { Footer, Header } from '@/components/layout/Layout'
 import { BookingPage } from '@/pages/BookingPage'
 import { BookingSuccessPage } from '@/pages/BookingSuccessPage'
@@ -40,6 +41,8 @@ export function App() {
           </main>
 
           <Footer />
+
+          <ChatWidget />
         </div>
       </BrowserRouter>
     </QueryClientProvider>

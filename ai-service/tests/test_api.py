@@ -58,3 +58,45 @@ def test_app_builds_default_service_during_lifespan(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert response.json()["message"] == "Ответ для demo: Привет"
+
+
+def test_chat_preflight_allows_frontend_origin() -> None:
+    client = TestClient(create_app(chat_service=FakeChatService()))
+
+    response = client.options(
+        "/chat",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+def test_chat_allows_any_localhost_dev_port() -> None:
+    # Порт vite-сервера у разработчика плавает, поэтому разрешён любой localhost.
+    client = TestClient(create_app(chat_service=FakeChatService()))
+
+    response = client.post(
+        "/chat",
+        json={"session_id": "demo", "message": "Привет"},
+        headers={"Origin": "http://localhost:57146"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:57146"
+
+
+def test_chat_rejects_foreign_origin() -> None:
+    client = TestClient(create_app(chat_service=FakeChatService()))
+
+    response = client.post(
+        "/chat",
+        json={"session_id": "demo", "message": "Привет"},
+        headers={"Origin": "http://evil.example"},
+    )
+
+    assert "access-control-allow-origin" not in response.headers

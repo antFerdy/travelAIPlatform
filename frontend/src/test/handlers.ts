@@ -9,6 +9,9 @@ import { COUNTRIES, TOURS } from './fixtures'
 export const API_ORIGIN = 'http://api.test'
 const BASE = `${API_ORIGIN}/api/v1`
 
+/** AI-сервис живёт отдельно от каталога, у него свой origin и свой контракт. */
+export const AI_ORIGIN = 'http://ai.test'
+
 /**
  * Заглушка бэкенда, реализующая docs/superpowers/specs/api.md буква в букву:
  * snake_case в теле, ошибки вида { error }, 422 на невалидный ввод,
@@ -95,7 +98,7 @@ function dateParam(url: URL, name: string): string | undefined {
   return raw
 }
 
-export const handlers = [
+export const catalogHandlers = [
   http.get(`${API_ORIGIN}/health`, () => HttpResponse.json({ status: 'ok' })),
 
   http.get(`${BASE}/countries`, () => HttpResponse.json(COUNTRIES)),
@@ -219,3 +222,49 @@ export const handlers = [
       : fail(404, `booking ${params['id']} not found`)
   }),
 ]
+
+/** Ошибки FastAPI отдаются полем detail, а не error. */
+function failAi(status: number, detail: string) {
+  return HttpResponse.json({ detail }, { status })
+}
+
+/** Формат session_id из ai-service/app/schemas.py. */
+const SESSION_ID = /^[A-Za-z0-9_-]{1,100}$/
+
+/**
+ * Заглушка AI-сервиса: `POST /chat` из ai-service/README.md.
+ * Тело `{session_id, message}`, ответ `{session_id, message}`,
+ * 422 на невалидный ввод, 503 когда агент недоступен.
+ */
+export const aiHandlers = [
+  http.post(`${AI_ORIGIN}/chat`, async ({ request }) => {
+    let body: unknown
+
+    try {
+      body = await request.json()
+    } catch {
+      return failAi(422, 'invalid request body')
+    }
+
+    if (typeof body !== 'object' || body === null) return failAi(422, 'invalid request body')
+
+    const raw = body as Record<string, unknown>
+    const sessionId = raw['session_id']
+    const message = raw['message']
+
+    if (typeof sessionId !== 'string' || !SESSION_ID.test(sessionId)) {
+      return failAi(422, 'session_id: string does not match regex')
+    }
+
+    if (typeof message !== 'string' || message.trim() === '' || message.length > 2000) {
+      return failAi(422, 'message: value is not a valid non-empty string')
+    }
+
+    return HttpResponse.json({
+      session_id: sessionId,
+      message: `Подобрал варианты по запросу «${message.trim()}»: Стамбул, 7 ночей, 690 000 ₸.`,
+    })
+  }),
+]
+
+export const handlers = [...catalogHandlers, ...aiHandlers]
