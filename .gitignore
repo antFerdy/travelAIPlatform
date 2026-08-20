@@ -1,0 +1,26 @@
+node_modules
+dist
+coverage
+*.local
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/.playwright/
+
+# Локальные переопределения окружения — не коммитим
+.env
+.env.local
+.env.*.local
+
+# Редакторы
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.swp
+
+# Логи
+npm-debug.log*
+yarn-error.log*
