@@ -185,7 +185,7 @@ function Gallery({ images, alt }: { images: string[]; alt: string }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="aspect-[16/10] overflow-hidden rounded-2xl">
+      <div className="relative aspect-[16/10] overflow-hidden rounded-2xl">
         <TourImage src={cover} alt={alt} loading="eager" />
       </div>
 
@@ -199,7 +199,7 @@ function Gallery({ images, alt }: { images: string[]; alt: string }) {
               aria-pressed={index === active}
               onClick={() => setActive(index)}
               className={cn(
-                'h-20 w-28 overflow-hidden rounded-lg ring-2 transition-all',
+                'relative h-20 w-28 overflow-hidden rounded-lg ring-2 transition-all',
                 index === active ? 'ring-brand-600' : 'ring-transparent hover:ring-brand-300',
               )}
             >

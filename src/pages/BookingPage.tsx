@@ -210,7 +210,7 @@ export function BookingPage() {
 
         <aside className="flex flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
           <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
-            <div className="aspect-[16/9]">
+            <div className="relative aspect-[16/9]">
               <TourImage src={tour.images[0] ?? ''} alt={`${tour.city}, ${tour.country}`} />
             </div>
             <div className="flex flex-col gap-1 p-4">

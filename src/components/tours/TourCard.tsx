@@ -19,7 +19,7 @@ export function TourCard({ tour }: TourCardProps) {
 
   return (
     <article className="flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm transition-shadow hover:shadow-md">
-      <Link to={`/tours/${tour.id}`} className="block aspect-[4/3] overflow-hidden">
+      <Link to={`/tours/${tour.id}`} className="relative block aspect-[4/3] overflow-hidden">
         <TourImage src={cover} alt={`${tour.city}, ${tour.country}`} />
       </Link>
 
