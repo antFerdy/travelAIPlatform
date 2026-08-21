@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tours-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tours
+      POSTGRES_PASSWORD: tours
+      POSTGRES_DB: tours
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tours -d tours"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    container_name: tours-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://tours:tours@postgres:5432/tours?sslmode=disable
+      PORT: 8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  ai-service:
+    build: ./ai-service
+    container_name: tours-ai-service
+    restart: unless-stopped
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?set OPENAI_API_KEY in .env, see .env.example}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5-mini}
+      BACKEND_URL: http://api:8080
+      MEMORY_DB_PATH: runtime/memory.db
+      REQUEST_TIMEOUT_SECONDS: 5
+    ports:
+      - "8000:8000"
+    volumes:
+      - ai_service_memory:/service/runtime
+    depends_on:
+      - api
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:8080
+        VITE_AI_API_BASE_URL: http://localhost:8000
+    container_name: tours-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+      - ai-service
+
+volumes:
+  postgres_data:
+  ai_service_memory:

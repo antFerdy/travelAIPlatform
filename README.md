@@ -11,12 +11,14 @@
 ## Структура репозитория
 
 ```
-frontend/        фронтенд-приложение: код, тесты, конфигурация сборки
-backend/         API на Go + Echo + PostgreSQL
-tests/           сквозные QA-сценарии на Playwright
-ai-rules/        спецификации ролей для AI, по одной на участника
-docs/            скриншоты и проектные спеки, включая контракт API
-requirement.md   условия задания
+frontend/           фронтенд-приложение: код, тесты, конфигурация сборки
+backend/            API на Go + Echo + PostgreSQL
+ai-service/         AI-чат-сервис на FastAPI
+tests/              сквозные QA-сценарии на Playwright
+ai-rules/           спецификации ролей для AI, по одной на участника
+docs/               скриншоты и проектные спеки, включая контракт API
+docker-compose.yml  весь стек одной командой, см. «Docker Compose» ниже
+requirement.md      условия задания
 ```
 
 ## Быстрый старт
@@ -44,6 +46,33 @@ npm run dev
 ```bash
 npm run build:e2e && npm run preview
 ```
+
+### Docker Compose (полный стек)
+
+Поднимает весь проект разом — Postgres, бэкенд, ai-service и фронтенд —
+одной командой из корня репозитория:
+
+```bash
+cp .env.example .env   # OPENAI_API_KEY нужен ai-service, без него сервис не стартует
+docker compose up -d --build
+
+# один раз — применить схему и загрузить сид-данные
+docker exec -i tours-postgres psql -U tours -d tours -v ON_ERROR_STOP=1 \
+  < backend/internal/db/migrations/0001_init_schema.up.sql
+docker exec -i tours-postgres psql -U tours -d tours -v ON_ERROR_STOP=1 \
+  < backend/internal/db/seed/seed.sql
+docker compose restart api
+```
+
+| Сервис | URL |
+|---|---|
+| Frontend | http://localhost:5173 |
+| Backend API | http://localhost:8080 |
+| ai-service | http://localhost:8000 |
+| Postgres | localhost:5432 |
+
+Детали по каждому сервису — в [`backend/README.md`](backend/README.md) и
+[`ai-service/README.md`](ai-service/README.md).
 
 ## Команды
 

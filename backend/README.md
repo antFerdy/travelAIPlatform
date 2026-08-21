@@ -7,24 +7,30 @@ Full API contract (request/response shapes, validation, error codes):
 
 ## Local setup
 
-Full stack (Postgres + API) via Docker Compose:
+Full stack (Postgres + API + ai-service + frontend) via Docker Compose —
+see the root [`docker-compose.yml`](../docker-compose.yml) and
+[root README](../README.md#docker-compose-полный-стек). Run from the repo
+root, not from here:
 
 ```bash
-cp .env.example .env        # edit if needed
-docker compose up -d --build   # Postgres on :5432, API on :8080
+cd ..
+cp .env.example .env           # OPENAI_API_KEY, needed by ai-service
+docker compose up -d --build   # Postgres :5432, API :8080, ai-service :8000, frontend :5173
 
 # apply schema (first run only)
 docker exec -i tours-postgres psql -U tours -d tours -v ON_ERROR_STOP=1 \
-  < internal/db/migrations/0001_init_schema.up.sql
+  < backend/internal/db/migrations/0001_init_schema.up.sql
 
-# load seed data (countries + tours, derived from ../tour_platform.sql)
+# load seed data (countries + tours, derived from tour_platform.sql)
 docker exec -i tours-postgres psql -U tours -d tours -v ON_ERROR_STOP=1 \
-  < internal/db/seed/seed.sql
+  < backend/internal/db/seed/seed.sql
 
 docker compose restart api   # picks up the freshly seeded schema
 ```
 
-Or run the API natively against a dockerized Postgres only (`docker compose up -d postgres`, apply schema/seed as above, then):
+Or run just the API natively against a dockerized Postgres only (from the
+repo root: `docker compose up -d postgres`, apply schema/seed as above using
+the `backend/internal/db/...` paths, then from `backend/`):
 
 ```bash
 DATABASE_URL="postgres://tours:tours@localhost:5432/tours?sslmode=disable" \
@@ -140,6 +146,9 @@ sqlc generate
 ```
 
 ## Docker image
+
+Built automatically as the `api` service by the root `docker-compose.yml`.
+To build/run it standalone (from this directory):
 
 ```bash
 docker build -t tours-backend .
