@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_model: str = "gpt-5-mini"
     backend_url: str = "http://localhost:8080"
+    # Used to build clickable tour links in chat replies (frontend_url + /tours/{id}).
+    frontend_url: str = "http://localhost:5173"
     memory_db_path: Path = Path("runtime/memory.db")
     request_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
 

@@ -16,8 +16,14 @@ gateway = build_tour_gateway(settings)
 mcp = MCPServer(name="tour-catalog", log_level="WARNING")
 
 
+def _tour_url(tour_id: int) -> str:
+    return f"{settings.frontend_url.rstrip('/')}/tours/{tour_id}"
+
+
 def _serialize(tour: Tour) -> dict[str, Any]:
-    return tour.model_dump(mode="json")
+    # `url` is added here, not on the Tour schema itself: that schema also
+    # validates the backend's /tours response, which has no such field.
+    return {**tour.model_dump(mode="json"), "url": _tour_url(tour.id)}
 
 
 @mcp.tool(description="Найти доступные туры по стране, бюджету и датам.")

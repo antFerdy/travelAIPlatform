@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 
 import { cn } from '@/lib/cn'
+import { linkify } from '@/lib/linkify'
 import type { ChatMessage } from '@/types/chat'
 
 export type ChatBubbleProps = {
@@ -20,7 +21,7 @@ export function ChatBubble({ message }: ChatBubbleProps): ReactElement {
             : 'bg-brand-700 rounded-br-md text-white',
         )}
       >
-        {message.text}
+        {linkify(message.text)}
       </p>
     </li>
   )

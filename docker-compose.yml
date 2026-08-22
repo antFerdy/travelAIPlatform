@@ -38,6 +38,9 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:?set OPENAI_API_KEY in .env, see .env.example}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5-mini}
       BACKEND_URL: http://api:8080
+      # Открывает браузер пользователя, поэтому это публичный адрес фронтенда
+      # (localhost:5173 на хосте), а не внутренний docker-хост "frontend".
+      FRONTEND_URL: http://localhost:5173
       MEMORY_DB_PATH: runtime/memory.db
       REQUEST_TIMEOUT_SECONDS: 5
     ports:
